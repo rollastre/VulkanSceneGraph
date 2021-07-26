@@ -20,6 +20,13 @@ using namespace vsg;
 
 Options::Options()
 {
+    getOrCreateUniqueAuxiliary();
+
+    formatCoordinateConventions["gltf"] = CoordinateConvention::Y_UP;
+    formatCoordinateConventions["glb"] = CoordinateConvention::Y_UP;
+    formatCoordinateConventions["dae"] = CoordinateConvention::Y_UP;
+    formatCoordinateConventions["stl"] = CoordinateConvention::NO_PREFERENCE;
+    formatCoordinateConventions["obj"] = CoordinateConvention::NO_PREFERENCE;
 }
 
 Options::Options(const Options& options) :
@@ -29,14 +36,72 @@ Options::Options(const Options& options) :
     operationThreads(options.operationThreads),
     checkFilenameHint(options.checkFilenameHint),
     paths(options.paths),
+    findFileCallback(options.findFileCallback),
     fileCache(options.fileCache),
     extensionHint(options.extensionHint),
-    mapRGBtoRGBAHint(options.mapRGBtoRGBAHint)
+    mapRGBtoRGBAHint(options.mapRGBtoRGBAHint),
+    sceneCoordinateConvention(options.sceneCoordinateConvention),
+    formatCoordinateConventions(options.formatCoordinateConventions)
 {
+    getOrCreateUniqueAuxiliary();
 }
 
 Options::~Options()
 {
+}
+
+void Options::read(Input& input)
+{
+    Object::read(input);
+
+    input.readObject("objectCache", objectCache);
+
+    readerWriters.clear();
+    uint32_t count = input.readValue<uint32_t>("NumReaderWriters");
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        auto rw = input.readObject<ReaderWriter>("ReaderWriter");
+        if (rw) readerWriters.push_back(rw);
+    }
+
+    input.readObject("operationThreads", operationThreads);
+    input.readValue<uint32_t>("checkFilenameHint", checkFilenameHint);
+
+    paths.resize(input.readValue<uint32_t>("NumPaths"));
+    for (auto& path : paths)
+    {
+        input.read("path", path);
+    }
+
+    input.read("fileCache", fileCache);
+    input.read("extensionHint", extensionHint);
+    input.read("mapRGBtoRGBAHint", mapRGBtoRGBAHint);
+}
+
+void Options::write(Output& output) const
+{
+    Object::write(output);
+
+    output.writeObject("objectCache", objectCache);
+
+    output.writeValue<uint32_t>("NumReaderWriters", readerWriters.size());
+    for (auto& rw : readerWriters)
+    {
+        output.writeObject("ReaderWriter", rw);
+    }
+
+    output.writeObject("operationThreads", operationThreads);
+    output.writeValue<uint32_t>("checkFilenameHint", checkFilenameHint);
+
+    output.writeValue<uint32_t>("NumPaths", paths.size());
+    for (auto& path : paths)
+    {
+        output.write("path", path);
+    }
+
+    output.write("fileCache", fileCache);
+    output.write("extensionHint", extensionHint);
+    output.write("mapRGBtoRGBAHint", mapRGBtoRGBAHint);
 }
 
 void Options::add(ref_ptr<ReaderWriter> rw)

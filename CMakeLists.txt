@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.7)
 
 project(VSG
-    VERSION 0.0.5
+    VERSION 0.1.4
     DESCRIPTION "VulkanSceneGraph library"
     LANGUAGES CXX
 )
 set(VSG_SOVERSION 1)
+SET(VSG_RELEASE_CANDIDATE 0)
 
 # create the version header
 set(VSG_MAX_DEVICES 1 CACHE STRING "Set maximum number of vk/vsg::Device that are supported.")
@@ -61,7 +62,6 @@ if (VULKAN_SDK)
     message("Within VulkanSceneGraph cmake, setting VULKAN_SDK env var to " ${VULKAN_SDK})
     set(ENV{VULKAN_SDK} ${VULKAN_SDK})
 endif()
-
 
 find_package(Vulkan)
 find_package(Threads)
@@ -145,6 +145,48 @@ if (CLANGFORMAT)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Automated code format using clang-format"
     )
+endif()
+
+option(MAINTAINER "Enable maintainer build methods, such as making git branches and tags." OFF)
+if (MAINTAINER)
+
+    #
+    # Provide target for tagging a release
+    #
+    SET(BASE_NAME VulkanSceneGraph)
+    SET(VSG_BRANCH ${BASE_NAME}-${VSG_VERSION_MAJOR}.${VSG_VERSION_MINOR})
+
+    SET(GITCOMMAND git)
+
+    IF   (VSG_RELEASE_CANDIDATE EQUAL 0)
+        SET(RELEASE_NAME ${BASE_NAME}-${VSG_VERSION})
+    ELSE()
+        SET(RELEASE_NAME ${BASE_NAME}-${VSG_VERSION}-rc${VSG_RELEASE_CANDIDATE})
+    ENDIF()
+
+    SET(RELEASE_MESSAGE "Release ${RELEASE_NAME}")
+    SET(BRANCH_MESSAGE "Branch ${VSG_BRANCH}")
+
+    add_custom_target(tag-test
+        COMMAND echo ${GITCOMMAND} tag -a ${RELEASE_NAME} -m ${RELEASE_MESSAGE}
+        COMMAND echo ${GITCOMMAND} push origin ${RELEASE_NAME}
+    )
+
+    add_custom_target(tag-run
+        COMMAND ${GITCOMMAND} tag -a ${RELEASE_NAME} -m ${RELEASE_MESSAGE}
+        COMMAND ${GITCOMMAND} push origin ${RELEASE_NAME}
+    )
+
+    add_custom_target(branch-test
+        COMMAND echo ${GITCOMMAND} branch ${VSG_BRANCH}
+        COMMAND echo ${GITCOMMAND} push origin ${VSG_BRANCH}
+    )
+
+    add_custom_target(branch-run
+        COMMAND ${GITCOMMAND} branch ${VSG_BRANCH}
+        COMMAND ${GITCOMMAND} push origin ${VSG_BRANCH}
+    )
+
 endif()
 
 #

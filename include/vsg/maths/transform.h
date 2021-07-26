@@ -15,6 +15,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/core/Export.h>
 #include <vsg/maths/mat3.h>
 #include <vsg/maths/mat4.h>
+#include <vsg/maths/quat.h>
 #include <vsg/maths/vec3.h>
 
 #include <cmath>
@@ -32,7 +33,7 @@ namespace vsg
     constexpr float degrees(float radians) noexcept { return radians * (180.0f / PIf); }
     constexpr double degrees(double radians) noexcept { return radians * (180.0 / PI); }
 
-    /// Hermite interoplation between edge0 and edge1
+    /// Hermite interpolation between edge0 and edge1
     template<typename T>
     T smoothstep(T edge0, T edge1, T x)
     {
@@ -44,7 +45,7 @@ namespace vsg
         return edge0 + (r * r * (3.0 - 2.0 * r)) * (edge1 - edge0);
     }
 
-    /// Hermite interoplation between 0.0 and 1.0
+    /// Hermite interpolation between 0.0 and 1.0
     template<typename T>
     T smoothstep(T r)
     {
@@ -60,6 +61,12 @@ namespace vsg
     {
         T one_minus_r = 1.0 - r;
         return start * one_minus_r + end * r;
+    }
+
+    template<typename T>
+    constexpr t_mat4<T> rotate(const t_quat<T>& q)
+    {
+        return mat4_cast<T>(q);
     }
 
     template<typename T>
@@ -157,6 +164,19 @@ namespace vsg
                          0, 0, 0, 1) *
                vsg::translate(-eye.x, -eye.y, -eye.z);
     }
+
+    /// Hint on axis, using Collada conventions, all Right Hand
+    enum class CoordinateConvention
+    {
+        NO_PREFERENCE,
+        X_UP, // x up, y left/west, z out/south
+        Y_UP, // x right/east, y up, z out/south
+        Z_UP  // x right/east, y forward/north, z up
+    };
+
+    /// compute the transformation matrix required to transform from one coordinate frame convention to another.
+    /// return true if required and matrix modified, return false if no transformation is required.
+    extern VSG_DECLSPEC bool transform(CoordinateConvention source, CoordinateConvention destination, dmat4& matrix);
 
     /// fast float matrix inversion that use assumes the matrix is composed of only scales, rotations and translations forming a 4x3 matrix.
     extern VSG_DECLSPEC mat4 inverse_4x3(const mat4& m);

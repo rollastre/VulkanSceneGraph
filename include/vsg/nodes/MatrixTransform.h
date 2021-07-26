@@ -21,21 +21,15 @@ namespace vsg
     {
     public:
         MatrixTransform(Allocator* allocator = nullptr);
-        MatrixTransform(const dmat4& matrix, Allocator* allocator = nullptr);
+        MatrixTransform(const dmat4& in_matrix, Allocator* allocator = nullptr);
 
         void read(Input& input) override;
         void write(Output& output) const override;
 
-        void setMatrix(const dmat4& matrix) { _matrix = matrix; }
-        dmat4& getMatrix() { return _matrix; }
-        const dmat4& getMatrix() const { return _matrix; }
-
-        void setSubgraphRequiresLocalFrustum(bool flag) { _subgraphRequiresLocalFrustum = flag; }
-        bool getSubgraphRequiresLocalFrustum() const { return _subgraphRequiresLocalFrustum; }
+        dmat4 matrix;
+        bool subgraphRequiresLocalFrustum;
 
     protected:
-        dmat4 _matrix;
-        bool _subgraphRequiresLocalFrustum;
     };
     VSG_type_name(vsg::MatrixTransform);
 

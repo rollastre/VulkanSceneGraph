@@ -75,7 +75,7 @@ namespace vsgXcb
             return hints;
         }
 
-        static MotifHints window(bool resize=true, bool move=true, bool close=true, bool minimize=true)
+        static MotifHints window(bool resize=true, bool move=true, bool close=true, bool minimize=true, bool maximize=true)
         {
             MotifHints hints;
             hints.flags = FLAGS_DECORATIONS | FLAGS_FUNCTIONS;
@@ -84,6 +84,7 @@ namespace vsgXcb
             if (move) hints.functions |= FUNC_MOVE;
             if (close) hints.functions |= FUNC_CLOSE;
             if (minimize) hints.functions |= FUNC_MINIMUMSIZE;
+            if (maximize) hints.functions |= FUNC_MAXIMUMSIZE;
             hints.decorations = DECOR_ALL;
             return hints;
         }
@@ -463,6 +464,12 @@ Xcb_Window::Xcb_Window(vsg::ref_ptr<WindowTraits> traits) :
         _extent2D.width = geometry_reply->width;
         _extent2D.height = geometry_reply->height;
         free(geometry_reply);
+
+        // assign dimensions
+        traits->x = geometry_reply->x;
+        traits->y = geometry_reply->y;
+        traits->width = geometry_reply->width;
+        traits->height = geometry_reply->height;
     }
 
     traits->nativeWindow = _window;

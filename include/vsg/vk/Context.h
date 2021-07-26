@@ -27,6 +27,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/vk/ShaderCompiler.h>
 
 #include <vsg/commands/Command.h>
+#include <vsg/commands/CopyAndReleaseBuffer.h>
 #include <vsg/commands/CopyAndReleaseImage.h>
 
 namespace vsg
@@ -34,16 +35,21 @@ namespace vsg
     class VSG_DECLSPEC BuildAccelerationStructureCommand : public Inherit<Command, BuildAccelerationStructureCommand>
     {
     public:
-        BuildAccelerationStructureCommand(Device* device, VkAccelerationStructureInfoNV* info, const VkAccelerationStructureNV& structure, Buffer* instanceBuffer, Allocator* allocator = nullptr);
+        // the primitive Count is A) the amount of triangles to be built for type VK_GEOMETRY_TYPE_TRIANGLES_KHR (blas) B) the amoutn fo AABBs vor type VK_GEOMETRY_TYPE_AABBS_KHR
+        // and C) the number of acceleration structures for type VK_GEOMETRY_TYPE_INSTANCES_KHR
+        BuildAccelerationStructureCommand(Device* device, const VkAccelerationStructureBuildGeometryInfoKHR& info, const VkAccelerationStructureKHR& structure, const std::vector<uint32_t>& primitiveCounts, Allocator* allocator);
 
         void compile(Context&) override {}
         void record(CommandBuffer& commandBuffer) const override;
+        void setScratchBuffer(ref_ptr<Buffer>& scratchBuffer);
 
         ref_ptr<Device> _device;
-        VkAccelerationStructureInfoNV* _accelerationStructureInfo;
-        VkAccelerationStructureNV _accelerationStructure;
-        ref_ptr<Buffer> _instanceBuffer;
+        VkAccelerationStructureBuildGeometryInfoKHR _accelerationStructureInfo;
+        std::vector<VkAccelerationStructureGeometryKHR> _accelerationStructureGeometries;
+        std::vector<VkAccelerationStructureBuildRangeInfoKHR> _accelerationStructureBuildRangeInfos;
+        VkAccelerationStructureKHR _accelerationStructure;
 
+    protected:
         // scratch buffer set after compile traversal before record of build commands
         ref_ptr<Buffer> _scratchBuffer;
     };
@@ -102,9 +108,11 @@ namespace vsg
         std::vector<ref_ptr<Command>> commands;
 
         ref_ptr<CopyAndReleaseImage> copyImageCmd;
-
         void copy(ref_ptr<Data> data, ImageInfo dest);
         void copy(ref_ptr<Data> data, ImageInfo dest, uint32_t numMipMapLevels);
+
+        ref_ptr<CopyAndReleaseBuffer> copyBufferCmd;
+        void copy(BufferInfo src, BufferInfo dest);
 
         /// return true if there are commands that have been submitted
         bool record();
@@ -114,7 +122,7 @@ namespace vsg
         ref_ptr<MemoryBufferPools> deviceMemoryBufferPools;
         ref_ptr<MemoryBufferPools> stagingMemoryBufferPools;
 
-        // raytracing
+        // RTX ray tracing
         VkDeviceSize scratchBufferSize;
         std::vector<ref_ptr<BuildAccelerationStructureCommand>> buildAccelerationStructureCommands;
     };

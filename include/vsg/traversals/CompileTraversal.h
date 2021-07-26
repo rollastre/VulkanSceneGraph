@@ -13,6 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 </editor-fold> */
 
 #include <vsg/core/Object.h>
+#include <vsg/nodes/Bin.h>
 #include <vsg/nodes/Group.h>
 #include <vsg/state/BufferInfo.h>
 #include <vsg/state/Descriptor.h>
@@ -25,16 +26,27 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include <map>
 #include <set>
+#include <stack>
 
 namespace vsg
 {
     class VSG_DECLSPEC CollectDescriptorStats : public Inherit<ConstVisitor, CollectDescriptorStats>
     {
     public:
+        CollectDescriptorStats();
+
+        struct BinDetails
+        {
+            uint32_t viewTraversalIndex = 0;
+            std::set<int32_t> indices;
+            std::set<const Bin*> bins;
+        };
+
         using Descriptors = std::set<const Descriptor*>;
         using DescriptorSets = std::set<const DescriptorSet*>;
         using DescriptorTypeMap = std::map<VkDescriptorType, uint32_t>;
-        using Views = std::set<const View*>;
+        using Views = std::map<const View*, BinDetails>;
+        using BinStack = std::stack<BinDetails>;
 
         using ConstVisitor::apply;
 
@@ -49,6 +61,8 @@ namespace vsg
         void apply(const Descriptor& descriptor) override;
         void apply(const PagedLOD& plod) override;
         void apply(const View& view) override;
+        void apply(const DepthSorted& depthSorted) override;
+        void apply(const Bin& bin) override;
 
         uint32_t computeNumDescriptorSets() const;
 
@@ -58,6 +72,7 @@ namespace vsg
         DescriptorSets descriptorSets;
         DescriptorTypeMap descriptorTypeMap;
         Views views;
+        BinStack binStack;
 
         uint32_t maxSlot = 0;
         uint32_t externalNumDescriptorSets = 0;

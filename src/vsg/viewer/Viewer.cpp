@@ -10,8 +10,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 </editor-fold> */
 
+#include <vsg/nodes/StateGroup.h>
 #include <vsg/state/Descriptor.h>
-#include <vsg/state/StateGroup.h>
 #include <vsg/traversals/CompileTraversal.h>
 #include <vsg/viewer/View.h>
 #include <vsg/viewer/Viewer.h>
@@ -104,19 +104,6 @@ bool Viewer::pollEvents(bool discardPreviousEvents)
     return result;
 }
 
-void Viewer::advance()
-{
-    // poll all the windows for events.
-    pollEvents(true);
-
-    // create FrameStamp for frame
-    auto time = vsg::clock::now();
-    _frameStamp = _frameStamp ? new vsg::FrameStamp(time, _frameStamp->frameCount + 1) : new vsg::FrameStamp(time, 0);
-
-    // create an event for the new frame.
-    _events.emplace_back(new FrameEvent(_frameStamp));
-}
-
 bool Viewer::advanceToNextFrame()
 {
     if (!active()) return false;
@@ -186,6 +173,21 @@ bool Viewer::acquireNextFrame()
     return result == VK_SUCCESS;
 }
 
+VkResult Viewer::waitForFences(size_t relativeFrameIndex, uint64_t timeout)
+{
+    VkResult result = VK_SUCCESS;
+    for (auto& task : recordAndSubmitTasks)
+    {
+        auto fenceToWait = task->fence(relativeFrameIndex);
+        if (fenceToWait)
+        {
+            result = fenceToWait->wait(timeout);
+            if (result != VK_SUCCESS) return result;
+        }
+    }
+    return result;
+}
+
 void Viewer::handleEvents()
 {
     for (auto& vsg_event : _events)
@@ -244,6 +246,7 @@ void Viewer::compile(BufferPreferences bufferPreferences)
         auto queueFamily = physicalDevice->getQueueFamily(VK_QUEUE_GRAPHICS_BIT); // TODO : could we just use transfer bit?
 
         deviceResource.compile = new vsg::CompileTraversal(device, bufferPreferences);
+        deviceResource.compile->overrideMask = 0xffffffff;
         deviceResource.compile->context.commandPool = vsg::CommandPool::create(device, queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
         deviceResource.compile->context.graphicsQueue = device->getQueue(queueFamily);
 
@@ -251,11 +254,27 @@ void Viewer::compile(BufferPreferences bufferPreferences)
     }
 
     // assign the viewID's to each View
-    uint32_t viewID = 0;
-    for (auto& const_view : views)
+    for (auto& [const_view, binDetails] : views)
     {
         auto view = const_cast<View*>(const_view);
-        view->viewID = viewID++;
+        view->viewID = binDetails.viewTraversalIndex;
+
+        for (auto& binNumber : binDetails.indices)
+        {
+            bool binNumberMatched = false;
+            for (auto& bin : view->bins)
+            {
+                if (bin->binNumber == binNumber)
+                {
+                    binNumberMatched = true;
+                }
+            }
+            if (!binNumberMatched)
+            {
+                Bin::SortOrder sortOrder = (binNumber < 0) ? Bin::ASCENDING : ((binNumber == 0) ? Bin::NO_SORT : Bin::DESCENDING);
+                view->bins.push_back(Bin::create(binNumber, sortOrder));
+            }
+        }
     }
 
     if (containsPagedLOD && !databasePager) databasePager = DatabasePager::create();
@@ -582,7 +601,7 @@ void Viewer::recordAndSubmit()
 #if 1
     if (_threading)
 #else
-    // follows is a workaround for an odd "Possible data race during write of size 1" warning that valigrind tool=helgrind reports
+    // follows is a workaround for an odd "Possible data race during write of size 1" warning that valgrind tool=helgrind reports
     // on the first call to vkBeginCommandBuffer despite them being done on independent command buffers.  This could well be a driver bug or a false position.
     // if you want to quiet this warning then change the #if above to #if 0 as render the first three frames single threaded avoids the warning.
     if (_threading && _frameStamp->frameCount > 2)
