@@ -178,7 +178,7 @@ set(SOURCES
 
 # set up library dependencies
 set(LIBRARIES PUBLIC
-        Vulkan::Vulkan
+       # Vulkan::Vulkan
         Threads::Threads
 )
 
@@ -242,6 +242,12 @@ endif()
 
 
 add_library(vsg ${HEADERS} ${SOURCES})
+
+if (IOS)
+    target_include_directories(vsg
+      PUBLIC
+        /usr/local/include/)
+endif()
 
 if(MSVC)
     # ensure the libraries are all built in the lib directory

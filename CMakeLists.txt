@@ -62,8 +62,11 @@ if (VULKAN_SDK)
     set(ENV{VULKAN_SDK} ${VULKAN_SDK})
 endif()
 
-
-find_package(Vulkan)
+if(NOT IOS)
+    find_package(Vulkan)
+else()
+    #find_package(MoltenVK)
+endif()
 find_package(Threads)
 
 if (NOT DEFINED glslang_FOUND)

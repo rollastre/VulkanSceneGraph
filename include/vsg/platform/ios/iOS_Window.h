@@ -1,28 +1,26 @@
-#pragma once
+//
+//  vsg_iOS_ApplicationDelegate.h
+//  IOS_vsg_native_example
+//
+//  Created by jaume dominguez faus on 23/5/21.
+//
 
-/* <editor-fold desc="MIT License">
+#ifndef vsg_iOS_Window_h
+#define vsg_iOS_Window_h
 
-Copyright(c) 2018 Robert Osfield
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-</editor-fold> */
-
-#define VK_USE_PLATFORM_MACOS_MVK
-
+#include "/usr/local/include/vulkan/vulkan_core.h" // do not commit this!
+#include "/usr/local/include/vulkan/vulkan_ios.h" // do not commit this!
+//#include <vulkan/vulkan_core.h>
+//#include <vulkan/vulkan_ios.h>
 #include <vsg/viewer/Window.h>
 #include <vsg/ui/KeyEvent.h>
 
-@class NSEvent;
-@class CAMetalLayer;
-@class vsg_MacOS_NSView;
-@class vsg_MacOS_NSWindow;
+#include <UIKit/UiKit.h>
 
-namespace vsgMacOS
+@class vsg_iOS_Window;
+@class vsg_iOS_View;
+
+namespace vsgiOS
 {
     extern vsg::Names getInstanceExtensions();
 
@@ -33,7 +31,7 @@ namespace vsgMacOS
 
         using kVKKeyCodeToKeySymbolMap = std::map<unsigned short, vsg::KeySymbol>;
 
-        bool getKeySymbol(NSEvent* anEvent, vsg::KeySymbol& keySymbol, vsg::KeySymbol& modifiedKeySymbol, vsg::KeyModifier& keyModifier);
+        bool getKeySymbol(UIEvent* anEvent, vsg::KeySymbol& keySymbol, vsg::KeySymbol& modifiedKeySymbol, vsg::KeyModifier& keyModifier);
 
     protected:
         kVKKeyCodeToKeySymbolMap _keycodeMap;
@@ -49,7 +47,7 @@ namespace vsgMacOS
         iOS_Window(const iOS_Window&) = delete;
         iOS_Window operator = (const iOS_Window&) = delete;
 
-        const char* instanceExtensionSurfaceName() const override { return "VK_MVK_macos_surface"; }
+        const char* instanceExtensionSurfaceName() const override { return VK_MVK_IOS_SURFACE_EXTENSION_NAME; }
 
         bool valid() const override { return _window; }
 
@@ -59,11 +57,11 @@ namespace vsgMacOS
 
         void resize() override;
 
-        bool handleNSEvent(NSEvent* anEvent);
+        bool handleNSEvent(UIEvent* anEvent);
 
         // native objects
-        vsg_MacOS_NSWindow* window() { return _window; };
-        vsg_MacOS_NSView* view() { return _view; };
+        vsg_iOS_Window* window() { return _window; };
+        vsg_iOS_View* view() { return _view; };
         CAMetalLayer* layer() { return _metalLayer; };
 
         vsg::clock::time_point getEventTime(double eventTime)
@@ -75,12 +73,12 @@ namespace vsgMacOS
         void queueEvent(vsg::UIEvent* anEvent) { _bufferedEvents.emplace_back(anEvent); }
 
     protected:
-        virtual ~MacOS_Window();
+        virtual ~iOS_Window();
 
         void _initSurface() override;
 
-        vsg_MacOS_NSWindow* _window;
-        vsg_MacOS_NSView* _view;
+        vsg_iOS_Window* _window;
+        vsg_iOS_View* _view;
         CAMetalLayer* _metalLayer;
 
         double _first_macos_timestamp = 0;
@@ -91,3 +89,7 @@ namespace vsgMacOS
     };
 
 } // namespace vsgMacOS
+
+EVSG_type_name(vsgiOS::iOS_Window);
+
+#endif /* vsg_iOS_Window_h */
