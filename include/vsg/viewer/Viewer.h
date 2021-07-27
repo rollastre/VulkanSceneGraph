@@ -75,15 +75,16 @@ namespace vsg
         /// lf still active poll for pending events and place them in the Events list and advance to the next frame, update generate FrameStamp to signify the advancement to a new frame and return true.
         virtual bool advanceToNextFrame();
 
-        /// poll for pending events and place them in the Events list and update generate FrameStamp to signify the advancement to a new frame.
-        virtual void advance();
-
         /// pass the Events into the any register EventHandlers
         virtual void handleEvents();
 
         virtual void compile(BufferPreferences bufferPreferences = {});
 
         virtual bool acquireNextFrame();
+
+        /// call vkWaitForFence on the fences associated with previous frames RecordAndSubmitTask, a relativeFrameIndex of 1 is the previous frame, 2 is two frames ago.
+        /// timeout is in nanasecodnds.
+        virtual VkResult waitForFences(size_t relativeFrameIndex, uint64_t timeout);
 
         // Manage the work to do each frame using RecordAndSubmitTasks. those that need to present results to be wired up to respective Presentation object
         using RecordAndSubmitTasks = std::vector<ref_ptr<RecordAndSubmitTask>>;
@@ -93,7 +94,7 @@ namespace vsg
         using Presentations = std::vector<ref_ptr<Presentation>>;
         Presentations presentations;
 
-        /// create a RecordAndSubmitTask configured to manage specificied commandGraphs and assign it to the viewer.
+        /// create a RecordAndSubmitTask configured to manage specified commandGraphs and assign it to the viewer.
         void assignRecordAndSubmitTaskAndPresentation(CommandGraphs commandGraphs);
 
         ref_ptr<ActivityStatus> status;

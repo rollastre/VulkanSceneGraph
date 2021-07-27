@@ -11,10 +11,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 </editor-fold> */
 
 #include <vsg/io/Options.h>
+#include <vsg/nodes/StateGroup.h>
 #include <vsg/raytracing/RayTracingPipeline.h>
 #include <vsg/state/ComputePipeline.h>
 #include <vsg/state/GraphicsPipeline.h>
-#include <vsg/state/StateGroup.h>
 #include <vsg/vk/ShaderCompiler.h>
 
 #ifdef HAS_GLSLANG
@@ -29,7 +29,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <iomanip>
 #include <iostream>
 
-#define HAS_NV_RAYTRACNG (VK_HEADER_VERSION >= 92)
+#if VK_VERSION_1_1 == 1
+#    define HAS_KHR_RAYTRACNG (VK_VERSION_1_1)
+#    define HAS_NV_MESHSHADER (VK_VERSION_1_1)
+#endif
+
+#ifndef VK_API_VERSION_MAJOR
+#    define VK_API_VERSION_MAJOR(version) (((uint32_t)(version) >> 22) & 0x7FU)
+#    define VK_API_VERSION_MINOR(version) (((uint32_t)(version) >> 12) & 0x3FFU)
+#endif
 
 using namespace vsg;
 
@@ -77,7 +85,8 @@ std::string debugFormatShaderSource(const std::string& source)
 }
 
 ShaderCompiler::ShaderCompiler() :
-    Inherit()
+    Inherit(),
+    defaults(ShaderCompileSettings::create())
 {
 }
 
@@ -107,13 +116,15 @@ bool ShaderCompiler::compile(ShaderStages& shaders, const std::vector<std::strin
         case (VK_SHADER_STAGE_GEOMETRY_BIT): return "Geometry Shader";
         case (VK_SHADER_STAGE_FRAGMENT_BIT): return "Fragment Shader";
         case (VK_SHADER_STAGE_COMPUTE_BIT): return "Compute Shader";
-#    ifdef HAS_NV_RAYTRACNG
-        case (VK_SHADER_STAGE_RAYGEN_BIT_NV): return "RayGen Shader";
-        case (VK_SHADER_STAGE_ANY_HIT_BIT_NV): return "Any Hit Shader";
-        case (VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV): return "Closest Hit Shader";
-        case (VK_SHADER_STAGE_MISS_BIT_NV): return "Miss Shader";
-        case (VK_SHADER_STAGE_INTERSECTION_BIT_NV): return "Intersection Shader";
-        case (VK_SHADER_STAGE_CALLABLE_BIT_NV): return "Callable Shader";
+#    ifdef HAS_KHR_RAYTRACNG
+        case (VK_SHADER_STAGE_RAYGEN_BIT_KHR): return "RayGen Shader";
+        case (VK_SHADER_STAGE_ANY_HIT_BIT_KHR): return "Any Hit Shader";
+        case (VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR): return "Closest Hit Shader";
+        case (VK_SHADER_STAGE_MISS_BIT_KHR): return "Miss Shader";
+        case (VK_SHADER_STAGE_INTERSECTION_BIT_KHR): return "Intersection Shader";
+        case (VK_SHADER_STAGE_CALLABLE_BIT_KHR): return "Callable Shader";
+#    endif
+#    ifdef HAS_NV_MESHSHADER
         case (VK_SHADER_STAGE_TASK_BIT_NV): return "Task Shader";
         case (VK_SHADER_STAGE_MESH_BIT_NV): return "Mesh Shader";
 #    endif
@@ -134,6 +145,8 @@ bool ShaderCompiler::compile(ShaderStages& shaders, const std::vector<std::strin
     for (auto& vsg_shader : shaders)
     {
         EShLanguage envStage = EShLangCount;
+        glslang::EShTargetLanguageVersion minTargetLanguageVersion = glslang::EShTargetSpv_1_0;
+
         switch (vsg_shader->stage)
         {
         case (VK_SHADER_STAGE_VERTEX_BIT): envStage = EShLangVertex; break;
@@ -142,13 +155,31 @@ bool ShaderCompiler::compile(ShaderStages& shaders, const std::vector<std::strin
         case (VK_SHADER_STAGE_GEOMETRY_BIT): envStage = EShLangGeometry; break;
         case (VK_SHADER_STAGE_FRAGMENT_BIT): envStage = EShLangFragment; break;
         case (VK_SHADER_STAGE_COMPUTE_BIT): envStage = EShLangCompute; break;
-#    ifdef HAS_NV_RAYTRACNG
-        case (VK_SHADER_STAGE_RAYGEN_BIT_NV): envStage = EShLangRayGenNV; break;
-        case (VK_SHADER_STAGE_ANY_HIT_BIT_NV): envStage = EShLangAnyHitNV; break;
-        case (VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV): envStage = EShLangClosestHitNV; break;
-        case (VK_SHADER_STAGE_MISS_BIT_NV): envStage = EShLangMissNV; break;
-        case (VK_SHADER_STAGE_INTERSECTION_BIT_NV): envStage = EShLangIntersectNV; break;
-        case (VK_SHADER_STAGE_CALLABLE_BIT_NV): envStage = EShLangCallableNV; break;
+#    ifdef HAS_KHR_RAYTRACNG
+        case (VK_SHADER_STAGE_RAYGEN_BIT_KHR):
+            envStage = EShLangRayGen;
+            minTargetLanguageVersion = glslang::EShTargetSpv_1_4;
+            break;
+        case (VK_SHADER_STAGE_ANY_HIT_BIT_KHR):
+            envStage = EShLangAnyHit;
+            minTargetLanguageVersion = glslang::EShTargetSpv_1_4;
+            break;
+        case (VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR):
+            envStage = EShLangClosestHit;
+            minTargetLanguageVersion = glslang::EShTargetSpv_1_4;
+            break;
+        case (VK_SHADER_STAGE_MISS_BIT_KHR):
+            envStage = EShLangMiss;
+            minTargetLanguageVersion = glslang::EShTargetSpv_1_4;
+            break;
+        case (VK_SHADER_STAGE_INTERSECTION_BIT_KHR):
+            envStage = EShLangIntersect;
+            minTargetLanguageVersion = glslang::EShTargetSpv_1_4;
+            break;
+        case (VK_SHADER_STAGE_CALLABLE_BIT_KHR):
+            envStage = EShLangCallable;
+            minTargetLanguageVersion = glslang::EShTargetSpv_1_4;
+            break;
         case (VK_SHADER_STAGE_TASK_BIT_NV): envStage = EShLangTaskNV; break;
         case (VK_SHADER_STAGE_MESH_BIT_NV): envStage = EShLangMeshNV; break;
 #    endif
@@ -164,9 +195,18 @@ bool ShaderCompiler::compile(ShaderStages& shaders, const std::vector<std::strin
         glslang::TShader* shader(new glslang::TShader(envStage));
         tshaders.emplace_back(shader);
 
-        shader->setEnvInput(glslang::EShSourceGlsl, envStage, glslang::EShClientVulkan, 150);
-        shader->setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_1);
-        shader->setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
+        // select the ShaderCompileSettings to use
+        auto settings = vsg_shader->module->hints ? vsg_shader->module->hints : defaults;
+
+        // select the most appropriate Spirv version
+        glslang::EShTargetLanguageVersion targetLanguageVersion = std::max(static_cast<glslang::EShTargetLanguageVersion>(settings->target), minTargetLanguageVersion);
+
+        // convert Vulkan version to glsLang equivilant
+        glslang::EShTargetClientVersion targetClientVersion = static_cast<glslang::EShTargetClientVersion>((VK_API_VERSION_MAJOR(settings->vulkanVersion) << 22) | (VK_API_VERSION_MINOR(settings->vulkanVersion) << 12));
+
+        shader->setEnvInput(static_cast<glslang::EShSource>(settings->language), envStage, glslang::EShClientVulkan, settings->clientInputVersion);
+        shader->setEnvClient(glslang::EShClientVulkan, targetClientVersion);
+        shader->setEnvTarget(glslang::EShTargetSpv, targetLanguageVersion);
 
         std::string shaderSourceWithIncludesInserted = insertIncludes(vsg_shader->module->source, paths);
         std::string finalShaderSource = combineSourceAndDefines(shaderSourceWithIncludesInserted, defines);
@@ -174,10 +214,8 @@ bool ShaderCompiler::compile(ShaderStages& shaders, const std::vector<std::strin
         const char* str = finalShaderSource.c_str();
         shader->setStrings(&str, 1);
 
-        int defaultVersion = 110; // 110 desktop, 100 non desktop
-        bool forwardCompatible = false;
         EShMessages messages = EShMsgDefault;
-        bool parseResult = shader->parse(&builtInResources, defaultVersion, forwardCompatible, messages);
+        bool parseResult = shader->parse(&builtInResources, settings->defaultVersion, settings->forwardCompatible, messages);
 
         if (parseResult)
         {
@@ -524,9 +562,9 @@ void ShaderCompiler::apply(Node& node)
 
 void ShaderCompiler::apply(StateGroup& stategroup)
 {
-    for (auto& stateCommands : stategroup.getStateCommands())
+    for (auto& stateCommand : stategroup.stateCommands)
     {
-        stateCommands->accept(*this);
+        stateCommand->accept(*this);
     }
 
     stategroup.traverse(*this);

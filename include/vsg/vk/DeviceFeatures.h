@@ -19,7 +19,7 @@ namespace vsg
 {
 
     /// DeviceFeatures is a container class for setting up Vulkan features structures to be passed in vsg::Device creation.
-    /// Automatically deletes associated created feature strucutres on destructions.
+    /// Automatically deletes associated created feature structures on destructions.
     class VSG_DECLSPEC DeviceFeatures : public Inherit<Object, DeviceFeatures>
     {
     public:
@@ -28,9 +28,11 @@ namespace vsg
         DeviceFeatures(const DeviceFeatures&) = delete;
         DeviceFeatures& operator=(const DeviceFeatures&) = delete;
 
-        /// get the standard VkPhysicalDeviceFeatures structure.
-        /// usage exaple :
-        ///     deviceFeatures->get().samplerAnisotropy = VK_TRUE;
+        /// get a Vulkan extension feature structure.
+        /// usage example :
+        ///     auto& meshFeatures = features->get<VkPhysicalDeviceMeshShaderFeaturesNV, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV>();
+        ///     meshFeatures.meshShader = 1;
+        ///     meshFeatures.taskShader = 1;
         template<typename FeatureStruct, VkStructureType type>
         FeatureStruct& get()
         {
@@ -48,12 +50,10 @@ namespace vsg
 
         /// get the standard VkPhysicalDeviceFeatures structure.
         /// usage example :
-        ///     auto& meshFeatures = features->get<VkPhysicalDeviceMeshShaderFeaturesNV, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV>();
-        ///     meshFeatures.meshShader = 1;
-        ///     meshFeatures.taskShader = 1;
+        ///     deviceFeatures->get().samplerAnisotropy = VK_TRUE;
         VkPhysicalDeviceFeatures& get();
 
-        /// clear all the feature strucutres
+        /// clear all the feature structures
         void clear();
 
         /// data() is used as the VkCreateDeviceInfo.pNext setting

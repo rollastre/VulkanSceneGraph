@@ -33,10 +33,14 @@ namespace vsg
     class VSG_DECLSPEC CopyAndReleaseBuffer : public Inherit<Command, CopyAndReleaseBuffer>
     {
     public:
-        CopyAndReleaseBuffer() {}
-        CopyAndReleaseBuffer(BufferInfo src, BufferInfo dest);
+        CopyAndReleaseBuffer(ref_ptr<MemoryBufferPools> optional_stagingMemoryBufferPools = {});
 
         void add(BufferInfo src, BufferInfo dest);
+
+        /// MemoryBufferPools used for allocation staging buffer used by the copy(ref_ptr<Data>, BufferInfo) method.  Users should assign a MemoryBufferPools with appropriate settings.
+        ref_ptr<MemoryBufferPools> stagingMemoryBufferPools;
+
+        void copy(ref_ptr<Data> data, BufferInfo dest);
 
         void record(CommandBuffer& commandBuffer) const override;
 
@@ -51,8 +55,10 @@ namespace vsg
             void record(CommandBuffer& commandBuffer) const;
         };
 
-        mutable std::vector<CopyData> pending;
-        mutable std::vector<CopyData> completed;
+        mutable std::mutex _mutex;
+        mutable std::vector<CopyData> _pending;
+        mutable std::vector<CopyData> _completed;
+        mutable std::vector<CopyData> _readyToClear;
     };
 
 } // namespace vsg

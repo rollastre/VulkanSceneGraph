@@ -16,6 +16,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/nodes/Geometry.h>
 #include <vsg/nodes/VertexIndexDraw.h>
 #include <vsg/state/GraphicsPipeline.h>
+#include <vsg/state/InputAssemblyState.h>
+#include <vsg/state/VertexInputState.h>
 #include <vsg/traversals/ArrayState.h>
 
 using namespace vsg;
@@ -64,7 +66,7 @@ void ArrayState::apply(const vsg::VertexIndexDraw& vid)
 
 void ArrayState::apply(const vsg::BindVertexBuffers& bvb)
 {
-    apply(bvb.getFirstBinding(), bvb.getArrays());
+    apply(bvb.firstBinding, bvb.arrays);
 }
 
 void ArrayState::apply(uint32_t firstBinding, const vsg::DataList& in_arrays)

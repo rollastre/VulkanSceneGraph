@@ -14,8 +14,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/commands/PipelineBarrier.h>
 #include <vsg/io/Options.h>
 
-#include <iostream>
-
 using namespace vsg;
 
 struct FormatTraits
@@ -122,8 +120,8 @@ CopyAndReleaseImage::CopyAndReleaseImage(ref_ptr<MemoryBufferPools> optional_sta
 
 CopyAndReleaseImage::~CopyAndReleaseImage()
 {
-    for (auto& copyData : completed) copyData.source.release();
-    for (auto& copyData : pending) copyData.source.release();
+    for (auto& copyData : _completed) copyData.source.release();
+    for (auto& copyData : _pending) copyData.source.release();
 }
 
 CopyAndReleaseImage::CopyData::CopyData(BufferInfo src, ImageInfo dest, uint32_t numMipMapLevels)
@@ -143,14 +141,20 @@ CopyAndReleaseImage::CopyData::CopyData(BufferInfo src, ImageInfo dest, uint32_t
     }
 }
 
+void CopyAndReleaseImage::add(const CopyData& cd)
+{
+    std::scoped_lock lock(_mutex);
+    _pending.push_back(cd);
+}
+
 void CopyAndReleaseImage::add(BufferInfo src, ImageInfo dest)
 {
-    pending.push_back(CopyData(src, dest, vsg::computeNumMipMapLevels(src.data, dest.sampler)));
+    add(CopyData(src, dest, vsg::computeNumMipMapLevels(src.data, dest.sampler)));
 }
 
 void CopyAndReleaseImage::add(BufferInfo src, ImageInfo dest, uint32_t numMipMapLevels)
 {
-    pending.push_back(CopyData(src, dest, numMipMapLevels));
+    add(CopyData(src, dest, numMipMapLevels));
 }
 
 void CopyAndReleaseImage::copy(ref_ptr<Data> data, ImageInfo dest)
@@ -183,7 +187,7 @@ void CopyAndReleaseImage::copy(ref_ptr<Data> data, ImageInfo dest, uint32_t numM
     }
     else
     {
-        // std::cout<<"Adapting"<<std::endl;
+        //std::cout<<"Adapting"<<std::endl;
 
         VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
@@ -521,15 +525,17 @@ void CopyAndReleaseImage::CopyData::record(CommandBuffer& commandBuffer) const
 
 void CopyAndReleaseImage::record(CommandBuffer& commandBuffer) const
 {
-    for (auto& copyData : readyToClear) copyData.source.release();
-    readyToClear.clear();
+    std::scoped_lock lock(_mutex);
 
-    readyToClear.swap(completed);
+    for (auto& copyData : _readyToClear) copyData.source.release();
+    _readyToClear.clear();
 
-    for (auto& copyData : pending)
+    _readyToClear.swap(_completed);
+
+    for (auto& copyData : _pending)
     {
         copyData.record(commandBuffer);
     }
 
-    pending.swap(completed);
+    _pending.swap(_completed);
 }

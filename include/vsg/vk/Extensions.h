@@ -33,16 +33,21 @@ namespace vsg
 
         Extensions(Device* device);
 
-        // VK_NV_ray_tracing
-        PFN_vkCreateAccelerationStructureNV vkCreateAccelerationStructureNV;
-        PFN_vkDestroyAccelerationStructureNV vkDestroyAccelerationStructureNV;
-        PFN_vkBindAccelerationStructureMemoryNV vkBindAccelerationStructureMemoryNV;
-        PFN_vkGetAccelerationStructureHandleNV vkGetAccelerationStructureHandleNV;
-        PFN_vkGetAccelerationStructureMemoryRequirementsNV vkGetAccelerationStructureMemoryRequirementsNV;
-        PFN_vkCmdBuildAccelerationStructureNV vkCmdBuildAccelerationStructureNV;
-        PFN_vkCreateRayTracingPipelinesNV vkCreateRayTracingPipelinesNV;
-        PFN_vkGetRayTracingShaderGroupHandlesNV vkGetRayTracingShaderGroupHandlesNV;
-        PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV;
+        // VK_KHR_ray_tracing
+        PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR = nullptr;
+        PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR = nullptr;
+        PFN_vkGetAccelerationStructureDeviceAddressKHR vkGetAccelerationStructureDeviceAddressKHR = nullptr;
+        PFN_vkGetAccelerationStructureBuildSizesKHR vkGetAccelerationStructureBuildSizesKHR = nullptr;
+        PFN_vkCmdBuildAccelerationStructuresKHR vkCmdBuildAccelerationStructuresKHR = nullptr;
+        PFN_vkCreateRayTracingPipelinesKHR vkCreateRayTracingPipelinesKHR = nullptr;
+        PFN_vkGetRayTracingShaderGroupHandlesKHR vkGetRayTracingShaderGroupHandlesKHR = nullptr;
+        PFN_vkCmdTraceRaysKHR vkCmdTraceRaysKHR = nullptr;
+        PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR = nullptr;
+
+        // VK_NV_mesh_shader
+        PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNV = nullptr;
+        PFN_vkCmdDrawMeshTasksIndirectNV vkCmdDrawMeshTasksIndirectNV = nullptr;
+        PFN_vkCmdDrawMeshTasksIndirectCountNV vkCmdDrawMeshTasksIndirectCountNV = nullptr;
     };
 
 } // namespace vsg

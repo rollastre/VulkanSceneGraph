@@ -21,7 +21,7 @@ Trackball::Trackball(ref_ptr<Camera> camera, ref_ptr<EllipsoidModel> ellipsoidMo
     _camera(camera),
     _ellipsoidModel(ellipsoidModel)
 {
-    _lookAt = dynamic_cast<LookAt*>(_camera->getViewMatrix());
+    _lookAt = camera->viewMatrix.cast<LookAt>();
 
     if (!_lookAt)
     {
@@ -56,7 +56,7 @@ void Trackball::clampToGlobe()
     // apply the new clamped position to the LookAt.
     _lookAt->center = ecef;
 
-    double minimum_altitude = 1.0;
+    double minimum_altitude = 0.1;
     if (location_eye.z < minimum_altitude)
     {
         location_eye.z = minimum_altitude;
@@ -236,7 +236,7 @@ void Trackball::apply(MoveEvent& moveEvent)
 
 void Trackball::apply(ScrollWheelEvent& scrollWheel)
 {
-    if (scrollWheel.handled) return;
+    if (scrollWheel.handled || !_lastPointerEventWithinRenderArea) return;
 
     scrollWheel.handled = true;
 
@@ -407,8 +407,8 @@ void Trackball::pan(const dvec2& delta)
         {
             dvec3 globeNormal = normalize(_lookAt->center);
             dvec3 m = upNormal * (-delta.y) + sideNormal * (delta.x); // compute the position relative to the center in the eye plane
-            dvec3 v = m + lookNormal * dot(m, globeNormal);           // componsate for any tile relative to the globenormal
-            dvec3 axis = normalize(cross(globeNormal, v));            // compute the axis of ratation to map the mouse pan
+            dvec3 v = m + lookNormal * dot(m, globeNormal);           // compensate for any tile relative to the globenormal
+            dvec3 axis = normalize(cross(globeNormal, v));            // compute the axis of rotation to map the mouse pan
 
             dmat4 matrix = vsg::rotate(-angle, axis);
 

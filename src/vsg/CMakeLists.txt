@@ -34,6 +34,11 @@ set(SOURCES
     nodes/PagedLOD.cpp
     nodes/MatrixTransform.cpp
     nodes/VertexIndexDraw.cpp
+    nodes/DepthSorted.cpp
+    nodes/Bin.cpp
+    nodes/Switch.cpp
+    nodes/MaskGroup.cpp
+    nodes/StateGroup.cpp
 
     commands/BindIndexBuffer.cpp
     commands/BindVertexBuffers.cpp
@@ -60,7 +65,6 @@ set(SOURCES
     state/ComputePipeline.cpp
     state/DescriptorSet.cpp
     state/GraphicsPipeline.cpp
-    state/GraphicsPipelineStates.cpp
     state/Descriptor.cpp
     state/DescriptorBuffer.cpp
     state/DescriptorImage.cpp
@@ -72,10 +76,18 @@ set(SOURCES
     state/Sampler.cpp
     state/ResourceHints.cpp
     state/StateCommand.cpp
-    state/StateGroup.cpp
     state/Image.cpp
     state/ImageInfo.cpp
     state/ImageView.cpp
+    state/VertexInputState.cpp
+    state/InputAssemblyState.cpp
+    state/TessellationState.cpp
+    state/ViewportState.cpp
+    state/RasterizationState.cpp
+    state/MultisampleState.cpp
+    state/DepthStencilState.cpp
+    state/ColorBlendState.cpp
+    state/DynamicState.cpp
 
     io/FileSystem.cpp
     io/AsciiInput.cpp
@@ -134,6 +146,10 @@ set(SOURCES
     raytracing/RayTracingShaderGroup.cpp
     raytracing/TopLevelAccelerationStructure.cpp
     raytracing/TraceRays.cpp
+
+    rtx/DrawMeshTasks.cpp
+    rtx/DrawMeshTasksIndirect.cpp
+    rtx/DrawMeshTasksIndirectCount.cpp
 
     ui/UIEvent.cpp
     ui/ApplicationEvent.cpp

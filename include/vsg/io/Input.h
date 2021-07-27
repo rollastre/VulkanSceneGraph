@@ -19,6 +19,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/maths/box.h>
 #include <vsg/maths/mat4.h>
 #include <vsg/maths/plane.h>
+#include <vsg/maths/quat.h>
 #include <vsg/maths/sphere.h>
 #include <vsg/maths/vec2.h>
 #include <vsg/maths/vec3.h>
@@ -90,6 +91,8 @@ namespace vsg
         void read(size_t num, uivec2* value) { read(num * value->size(), value->data()); }
         void read(size_t num, uivec3* value) { read(num * value->size(), value->data()); }
         void read(size_t num, uivec4* value) { read(num * value->size(), value->data()); }
+        void read(size_t num, quat* value) { read(num * value->size(), value->data()); }
+        void read(size_t num, dquat* value) { read(num * value->size(), value->data()); }
         void read(size_t num, mat4* value) { read(num * value->size(), value->data()); }
         void read(size_t num, dmat4* value) { read(num * value->size(), value->data()); }
         void read(size_t num, sphere* value) { read(num * value->size(), value->data()); }
@@ -110,6 +113,44 @@ namespace vsg
             else
             {
                 read(num * sizeof(T), reinterpret_cast<uint8_t*>(value));
+            }
+        }
+
+        template<typename T>
+        void read(const char* propertyName, ref_ptr<T>& arg)
+        {
+            if (!matchPropertyName(propertyName)) return;
+            arg = read().cast<T>();
+        }
+
+        template<typename T>
+        void read(const char* propertyName, std::vector<ref_ptr<T>>& values)
+        {
+            if (!matchPropertyName(propertyName)) return;
+
+            uint32_t numElements = 0;
+            read(1, &numElements);
+            values.resize(numElements);
+
+            const char* element_name = type_name<T>();
+            for (uint32_t i = 0; i < numElements; ++i)
+            {
+                read(element_name, values[i]);
+            }
+        }
+
+        template<typename T>
+        void read(const char* propertyName, std::vector<T>& values)
+        {
+            if (!matchPropertyName(propertyName)) return;
+
+            uint32_t numElements = 0;
+            read(1, &numElements);
+            values.resize(numElements);
+
+            for (uint32_t i = 0; i < numElements; ++i)
+            {
+                read("element", values[i]);
             }
         }
 

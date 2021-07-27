@@ -57,6 +57,8 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_new(vsg::mat4Value);
     VSG_REGISTER_new(vsg::dmat4Value);
     VSG_REGISTER_new(vsg::materialValue);
+    VSG_REGISTER_new(vsg::PhongMaterialValue);
+    VSG_REGISTER_new(vsg::PbrMaterialValue);
 
     // arrays
     VSG_REGISTER_new(vsg::byteArray);
@@ -96,6 +98,8 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_new(vsg::block64Array);
     VSG_REGISTER_new(vsg::block128Array);
     VSG_REGISTER_new(vsg::materialArray);
+    VSG_REGISTER_new(vsg::PhongMaterialArray);
+    VSG_REGISTER_new(vsg::PbrMaterialArray);
     VSG_REGISTER_new(vsg::DrawIndirectCommandArray);
 
     // array2Ds
@@ -168,6 +172,10 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_create(vsg::MatrixTransform);
     VSG_REGISTER_create(vsg::Geometry);
     VSG_REGISTER_create(vsg::VertexIndexDraw);
+    VSG_REGISTER_create(vsg::Bin);
+    VSG_REGISTER_create(vsg::DepthSorted);
+    VSG_REGISTER_create(vsg::Switch);
+    VSG_REGISTER_create(vsg::MaskGroup);
 
     // vulkan objects
     VSG_REGISTER_create(vsg::BindGraphicsPipeline);
@@ -177,6 +185,7 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_create(vsg::ComputePipeline);
     VSG_REGISTER_create(vsg::ShaderStage);
     VSG_REGISTER_create(vsg::ShaderModule);
+    VSG_REGISTER_create(vsg::ShaderCompileSettings);
     VSG_REGISTER_create(vsg::VertexInputState);
     VSG_REGISTER_create(vsg::InputAssemblyState);
     VSG_REGISTER_create(vsg::TessellationState);
@@ -238,6 +247,16 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_create(vsg::KeyEvent);
     VSG_REGISTER_create(vsg::KeyPressEvent);
     VSG_REGISTER_create(vsg::KeyReleaseEvent);
+
+    // rtx
+    VSG_REGISTER_create(vsg::DrawMeshTasks);
+    VSG_REGISTER_create(vsg::DrawMeshTasksIndirect);
+    VSG_REGISTER_create(vsg::DrawMeshTasksIndirectCommandArray);
+
+    // io
+    VSG_REGISTER_create(vsg::Options);
+    VSG_REGISTER_create(vsg::CompositeReaderWriter);
+    VSG_REGISTER_create(vsg::VSG);
 
     // application
     VSG_REGISTER_create(vsg::EllipsoidModel);

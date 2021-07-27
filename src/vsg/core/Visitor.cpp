@@ -465,6 +465,22 @@ void Visitor::apply(VertexIndexDraw& value)
 {
     apply(static_cast<Command&>(value));
 }
+void Visitor::apply(DepthSorted& value)
+{
+    apply(static_cast<Node&>(value));
+}
+void Visitor::apply(Bin& value)
+{
+    apply(static_cast<Node&>(value));
+}
+void Visitor::apply(Switch& value)
+{
+    apply(static_cast<Node&>(value));
+}
+void Visitor::apply(MaskGroup& value)
+{
+    apply(static_cast<Node&>(value));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -497,6 +513,14 @@ void Visitor::apply(BindDescriptorSets& value)
 void Visitor::apply(Descriptor& value)
 {
     apply(static_cast<Object&>(value));
+}
+void Visitor::apply(DescriptorBuffer& value)
+{
+    apply(static_cast<Descriptor&>(value));
+}
+void Visitor::apply(DescriptorImage& value)
+{
+    apply(static_cast<Descriptor&>(value));
 }
 void Visitor::apply(DescriptorSet& value)
 {
@@ -593,6 +617,23 @@ void Visitor::apply(DrawIndexed& value)
 void Visitor::apply(ClearAttachments& value)
 {
     apply(static_cast<Command&>(value));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// RTX
+//
+void Visitor::apply(DrawMeshTasks& dmt)
+{
+    apply(static_cast<Command&>(dmt));
+}
+void Visitor::apply(DrawMeshTasksIndirect& dmti)
+{
+    apply(static_cast<Command&>(dmti));
+}
+void Visitor::apply(DrawMeshTasksIndirectCount& dmtic)
+{
+    apply(static_cast<Command&>(dmtic));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
