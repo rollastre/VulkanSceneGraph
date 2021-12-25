@@ -26,6 +26,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <time.h>
 
 #include <UIKit/UIKit.h>
+#include <vulkan/vulkan_metal.h>
 using namespace vsg;
 using namespace vsgiOS;
 
@@ -39,69 +40,32 @@ namespace vsg
 
 } // namespace vsg
 
+#pragma mark -
+#pragma mark vsg_iOS_ViewController
+@interface vsg_iOS_Window : UIWindow
+@end
 
-//------------------------------------------------------------------------
-// Application delegate
-//------------------------------------------------------------------------
-@interface vsg_iOS_AppDelegate : UIResponder <UIApplicationDelegate>
-@property (strong, nonatomic) UIWindow *window;
-@property (strong, nonatomic) UIViewController *viewController;
-@property ref_ptr<vsg::Window> vsgWindow;
+#pragma mark -
+#pragma mark vsg_iOS_ViewController
+@interface vsg_iOS_ViewController : UIViewController
+@end
+
+#pragma mark -
+#pragma mark vsg_iOS_View
+@interface vsg_iOS_View : UIView
 @end
 
 
-
-@implementation vsg_iOS_AppDelegate
-
-
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    // Override point for customization after application launch.
-    ref_ptr<WindowTraits> traits = WindowTraits::create();
-    self.vsgWindow = vsg::Window::create(traits);
-    return YES;
-}
-
-- (void)applicationWillResignActive:(UIApplication *)application {
-    // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-    // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
-}
-
-- (void)applicationDidEnterBackground:(UIApplication *)application {
-    // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
-    // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
-}
-
-- (void)applicationWillEnterForeground:(UIApplication *)application {
-    // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
-}
-
-- (void)applicationDidBecomeActive:(UIApplication *)application {
-    // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-}
-
-- (void)applicationWillTerminate:(UIApplication *)application {
-    // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
-}
-
-@end
 
 
 
 #pragma mark -
 #pragma mark vsg_iOS_Window
 
+
 @implementation vsg_iOS_Window
     
-//-(BOOL)canBecomeKeyWindow
-//{
-//    //std::cout << "canBecomeKeyWindow" << std::endl;
-//    return YES;
-//}
-//
-//-(BOOL)canBecomeMainWindow
-//{
-//    return YES;
-//}
+
 @end
 
 #pragma mark -
@@ -109,13 +73,12 @@ namespace vsg
 
 @implementation vsg_iOS_ViewController {
     CADisplayLink* _displayLink;
-    //struct demo demo;
+//    @public
+   // vsg_iOS_View*  _vsgView;
 }
 
 -(void) dealloc {
-    //demo_cleanup(&demo);
-    //[_displayLink release];
-    //[super dealloc];
+  
 }
 
 /** Since this is a single-view app, init Vulkan when the view is loaded. */
@@ -126,16 +89,19 @@ namespace vsg
     _displayLink = [CADisplayLink displayLinkWithTarget: self selector: @selector(renderLoop)];
     [_displayLink setPreferredFramesPerSecond: fps];
     [_displayLink addToRunLoop: NSRunLoop.currentRunLoop forMode: NSDefaultRunLoopMode];
+    
+  
+  //  [self.view addSubview:_vsgView];
+    
 }
 
 -(void) renderLoop {
-    //demo_draw(&demo);
-}
+ }
 
 // Allow device rotation to resize the swapchain
 -(void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id)coordinator {
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-    //demo_resize(&demo);
+    
 }
 
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations
@@ -150,7 +116,7 @@ namespace vsg
 @end
 
 
-/#pragma mark -
+#pragma mark -
 #pragma mark vsg_iOS_View
 
 @implementation vsg_iOS_View
@@ -168,19 +134,38 @@ namespace vsgiOS
     class iOSSurface : public vsg::Surface
     {
     public:
-        iOSSurface(vsg::Instance* instance, UIView* window)
+        iOSSurface(vsg::Instance* instance, vsg_iOS_View* window)
             : vsg::Surface(VK_NULL_HANDLE, instance)
         {
-            VkIOSSurfaceCreateInfoMVK surfaceCreateInfo{};
+            VkMetalSurfaceCreateInfoEXT surfaceCreateInfo{};
             surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
             surfaceCreateInfo.pNext = nullptr;
             surfaceCreateInfo.flags = 0;
-            surfaceCreateInfo.pView = (__bridge void*)window;
+            surfaceCreateInfo.pLayer = (CAMetalLayer*)window.layer;
             
-            vkCreateIOSSurfaceMVK(*instance, &surfaceCreateInfo, _instance->getAllocationCallbacks(), &_surface);
+            auto res = vkCreateMetalSurfaceEXT(*instance, &surfaceCreateInfo, _instance->getAllocationCallbacks(), &_surface);
+            if (res == VK_SUCCESS && _surface != VK_NULL_HANDLE)
+                std::cout << "Surface creation SUCCEEDED";
+            else
+                std::cout << "Failed creating the surface";
         }
         
     };
+}
+
+iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
+    : Inherit(traits)
+{
+    //_keyboard = new KeyboardMap;
+    auto rect = CGRectMake(traits->x, traits->y, traits->width, traits->height);
+    _window = [[UIWindow alloc] initWithFrame:rect];
+
+    
+    _window.rootViewController =  [[vsg_iOS_ViewController alloc] init];
+    _view = [ [vsg_iOS_View alloc] initWithFrame:rect];
+    _view.backgroundColor = [UIColor grayColor];
+    [_window.rootViewController.view addSubview:_view];
+    [_window makeKeyAndVisible];
 }
 
 iOS_Window::~iOS_Window()
@@ -543,73 +528,6 @@ KeyboardMap::KeyboardMap()
 //    return true;
 //}
 
-iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits) :
-    Inherit(traits)
-{
-    _keyboard = new KeyboardMap;
-}
-
-iOS_Window::~iOS_Window()
-{
-    clear();
-}
-
-void iOS_Window::_initSurface()
-{
-    if (!_instance) _initInstance();
-
-    _surface = new vsgIOS::IOSSurface(_instance, _view);
-}
-
-bool iOS_Window::pollEvents(vsg::UIEvents& events)
-{
-    for (;;)
-    {
-//        NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
-//                                            untilDate:[NSDate distantPast]
-//                                               inMode:NSDefaultRunLoopMode
-//                                              dequeue:YES];
-//        if (event == nil)
-//            break;
-
-//        [NSApp sendEvent:event];
-    }
-
-    if (_bufferedEvents.size() > 0)
-    {
-        events.splice(events.end(), _bufferedEvents);
-        _bufferedEvents.clear();
-        return true;
-    }
-
-    return false;
-}
-
-bool iOS_Window::resized() const
-{
-//    const NSRect contentRect = [_view frame];
-
-//    auto devicePixelScale = _traits->hdpi ? [_window backingScaleFactor] : 1.0f;
-
-//    uint32_t width = contentRect.size.width * devicePixelScale;
-//    uint32_t height = contentRect.size.height * devicePixelScale;
-
-//    return (width != _extent2D.width || height != _extent2D.height);
-    return true; // TODO delete this
-}
-
-void iOS_Window::resize()
-{
-//    const NSRect contentRect = [_view frame];
-
-//    auto devicePixelScale = _traits->hdpi ? [_window backingScaleFactor] : 1.0f;
-//    //[_metalLayer setContentsScale:devicePixelScale];
-
-//    _extent2D.width = contentRect.size.width * devicePixelScale;
-//    _extent2D.height = contentRect.size.height * devicePixelScale;
-
-    buildSwapchain();
-}
 
 //bool iOS_Window::handleNSEvent(NSEvent* anEvent)
 //{

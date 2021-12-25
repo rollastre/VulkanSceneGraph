@@ -194,7 +194,7 @@ set(SOURCES
 
 # set up library dependencies
 set(LIBRARIES PUBLIC
-       # Vulkan::Vulkan
+        Vulkan::Vulkan
         Threads::Threads
 )
 
@@ -262,7 +262,8 @@ add_library(vsg ${HEADERS} ${SOURCES})
 if (IOS)
     target_include_directories(vsg
       PUBLIC
-        /usr/local/include/)
+        /tmp/vulkan_install/MoltenVK/include
+    )
 endif()
 
 if(MSVC)

@@ -63,11 +63,8 @@ if (VULKAN_SDK)
     set(ENV{VULKAN_SDK} ${VULKAN_SDK})
 endif()
 
-if(NOT IOS)
-    find_package(Vulkan)
-else()
-    #find_package(MoltenVK)
-endif()
+
+find_package(Vulkan)
 find_package(Threads)
 
 if (NOT DEFINED glslang_FOUND)
@@ -89,7 +86,7 @@ function(dump_cmake_variables)
     endforeach()
 endfunction()
 
-dump_cmake_variables()
+#dump_cmake_variables()
 if (ANDROID)
     find_library(AndroidLib android)
     if(CMAKE_SYSTEM_VERSION GREATER 24)
@@ -216,3 +213,7 @@ endif()
 # src directory contains all the source of the vsg library
 #
 add_subdirectory(src/vsg)
+
+if (IOS)
+	add_subdirectory(examples/ios)
+endif()

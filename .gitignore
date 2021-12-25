@@ -12,6 +12,7 @@ Doxyfile.docs
 docs/ExplorationPhase/3rdPartyResources.md.backup
 src/vsg/vsgConfigVersion.cmake
 src/vsg/vsgConfig.cmake
+CMakeLists.txt.user
 
 html
 
@@ -69,3 +70,4 @@ src/vsg/vsg.dir/
 DerivedData/
 *.build
 *.xcodeproj
+.DS_Store

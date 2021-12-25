@@ -57,12 +57,12 @@ namespace vsgiOS
 
         void resize() override;
 
-        bool handleNSEvent(UIEvent* anEvent);
+      //  bool handleNSEvent(UIEvent* anEvent);
 
         // native objects
         vsg_iOS_Window* window() { return _window; };
         vsg_iOS_View* view() { return _view; };
-        CAMetalLayer* layer() { return _metalLayer; };
+       // CAMetalLayer* layer() { return _metalLayer; };
 
         vsg::clock::time_point getEventTime(double eventTime)
         {
@@ -79,7 +79,7 @@ namespace vsgiOS
 
         vsg_iOS_Window* _window;
         vsg_iOS_View* _view;
-        CAMetalLayer* _metalLayer;
+       // CAMetalLayer* _metalLayer;
 
         double _first_macos_timestamp = 0;
         vsg::clock::time_point _first_macos_time_point;
