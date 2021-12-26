@@ -27,13 +27,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include <UIKit/UIKit.h>
 #include <vulkan/vulkan_metal.h>
-using namespace vsg;
-using namespace vsgiOS;
+
 
 namespace vsg
 {
     // Provide the Window::create(...) implementation that automatically maps to a MacOS_Window
-    ref_ptr<Window> Window::create(vsg::ref_ptr<vsg::WindowTraits> traits)
+    vsg::ref_ptr<Window> Window::create(vsg::ref_ptr<vsg::WindowTraits> traits)
     {
         return vsgiOS::iOS_Window::create(traits);
     }
@@ -64,24 +63,43 @@ namespace vsg
 
 
 @implementation vsg_iOS_Window
-    
+{
+    vsgiOS::iOS_Window* vsgWindow;
+    vsg::ref_ptr<vsg::WindowTraits> _traits;
+}
+- (instancetype)initWithVsgWindow:(vsgiOS::iOS_Window*)initWindow andTraits:(vsg::ref_ptr<vsg::WindowTraits>)traits
+{
+    self = [super initWithFrame:CGRectMake(traits->x, traits->y, traits->width, traits->height)];
+    if (self != nil)
+    {
+        vsgWindow = initWindow;
+        _traits = traits;
+    }
+
+    return self;
+}
+
+- (BOOL)windowShouldClose:(id)sender
+{
+    vsg::clock::time_point event_time = vsg::clock::now();
+    vsgWindow->queueEvent(new vsg::CloseWindowEvent(vsgWindow, event_time));
+    return NO;
+}
 
 @end
+
+
+
+
+
 
 #pragma mark -
 #pragma mark vsg_iOS_ViewController
 
 @implementation vsg_iOS_ViewController {
     CADisplayLink* _displayLink;
-//    @public
-   // vsg_iOS_View*  _vsgView;
 }
 
--(void) dealloc {
-  
-}
-
-/** Since this is a single-view app, init Vulkan when the view is loaded. */
 -(void) viewDidLoad {
     [super viewDidLoad];
 
@@ -96,6 +114,7 @@ namespace vsg
 }
 
 -(void) renderLoop {
+    std::cout << "renderLoop" << std::endl;
  }
 
 // Allow device rotation to resize the swapchain
@@ -116,14 +135,120 @@ namespace vsg
 @end
 
 
+
+
+
 #pragma mark -
 #pragma mark vsg_iOS_View
 
 @implementation vsg_iOS_View
+{
+    vsgiOS::iOS_Window* vsgWindow;
+    vsg::ref_ptr<vsg::WindowTraits> _traits;
+}
 
+- (instancetype)initWithVsgWindow:(vsgiOS::iOS_Window*)initWindow andTraits:(vsg::ref_ptr<vsg::WindowTraits>)traits
+{
+    self = [super initWithFrame:CGRectMake(traits->x, traits->y, traits->width, traits->height)];
+    if (self != nil)
+    {
+        vsgWindow = initWindow;
+        _traits = traits;
+    }
+
+    return self;
+}
 /** Returns a Metal-compatible layer. */
 +(Class) layerClass { return [CAMetalLayer class]; }
 
+- (BOOL)isOpaque
+{
+    return true;
+}
+
+- (BOOL)canBecomeKeyView
+{
+    return YES;
+}
+
+- (BOOL)becomeFirstResponder
+{
+    return YES;
+}
+
+- (void)updateLayer
+{
+
+}
+
+- (BOOL)isMultipleTouchEnabled
+{
+    return YES;
+}
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)pressesChanged:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+- (void)motionEnded:(UIEventSubtype)motion withEvent:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+
+//- (void)cursorUpdate:(UIEvent *)event
+//{
+//}
+//
+//- (void)mouseDown:(UIEvent *)event
+//{
+//    self.window.handleUIEvent(event);
+//}
+//
+//- (void)mouseDragged:(UIEvent *)event
+//{
+//    window->handleUIEvent(event);
+//}
+//
+//- (void)mouseUp:(UIEvent *)event
+//{
+//    window->handleUIEvent(event);
+//}
+//
+//- (void)mouseMoved:(UIEvent *)event
+//{
+//    window->handleUIEvent(event);
+//}
 @end
 
 
@@ -144,43 +269,61 @@ namespace vsgiOS
             surfaceCreateInfo.pLayer = (CAMetalLayer*)window.layer;
             
             auto res = vkCreateMetalSurfaceEXT(*instance, &surfaceCreateInfo, _instance->getAllocationCallbacks(), &_surface);
-            if (res == VK_SUCCESS && _surface != VK_NULL_HANDLE)
-                std::cout << "Surface creation SUCCEEDED";
-            else
-                std::cout << "Failed creating the surface";
+            if (res != VK_SUCCESS || _surface == VK_NULL_HANDLE)
+                std::cerr << "[ERROR] Failed creating VkSurface";
         }
         
     };
 }
 
-iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
+vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     : Inherit(traits)
 {
-    //_keyboard = new KeyboardMap;
-    auto rect = CGRectMake(traits->x, traits->y, traits->width, traits->height);
-    _window = [[UIWindow alloc] initWithFrame:rect];
+    auto vc =  [[vsg_iOS_ViewController alloc] init];
+    _view = [ [vsg_iOS_View alloc] initWithVsgWindow:this andTraits:traits];
+    vc.view = _view;
+    _window = [ [vsg_iOS_Window alloc] initWithVsgWindow:this andTraits:traits];
 
     
-    _window.rootViewController =  [[vsg_iOS_ViewController alloc] init];
-    _view = [ [vsg_iOS_View alloc] initWithFrame:rect];
+    _window.rootViewController = vc;
+    
+    _metalLayer = (CAMetalLayer*) _view.layer;
     _view.backgroundColor = [UIColor grayColor];
-    [_window.rootViewController.view addSubview:_view];
+    [_view becomeFirstResponder]; // TODO needed?
+  
+    
+    _window.rootViewController.view  = _view;
+    
     [_window makeKeyAndVisible];
+    
+    auto devicePixelScale = 1.f; // TODO _traits->hdpi ? [_window backingScaleFactor] : 1.0f;
+      
+    // we could get the width height from the window?
+    uint32_t finalwidth = traits->width * devicePixelScale;
+    uint32_t finalheight = traits->height * devicePixelScale;
+    
+    _extent2D.width = finalwidth;
+    _extent2D.height = finalheight;
+    
+    // manually trigger configure here??
+    vsg::clock::time_point event_time = vsg::clock::now();
+    _bufferedEvents.emplace_back(new vsg::ConfigureWindowEvent(this, event_time, _traits->x, _traits->y, finalwidth, finalheight));
+
 }
 
-iOS_Window::~iOS_Window()
+vsgiOS::iOS_Window::~iOS_Window()
 {
     clear();
 }
 
-void iOS_Window::_initSurface()
+void vsgiOS::iOS_Window::_initSurface()
 {
     if (!_instance) _initInstance();
 
     _surface = new vsgiOS::iOSSurface(_instance, _view);
 }
 
-bool iOS_Window::pollEvents(vsg::UIEvents& events)
+bool vsgiOS::iOS_Window::pollEvents(vsg::UIEvents& events)
 {
 //    for (;;)
 //    {
@@ -194,30 +337,29 @@ bool iOS_Window::pollEvents(vsg::UIEvents& events)
 //        [NSApp sendEvent:event];
 //    }
 //
-//    if (_bufferedEvents.size() > 0)
-//    {
-//        events.splice(events.end(), _bufferedEvents);
-//        _bufferedEvents.clear();
-//        return true;
-//    }
+    if (_bufferedEvents.size() > 0)
+    {
+        events.splice(events.end(), _bufferedEvents);
+        _bufferedEvents.clear();
+        return true;
+    }
 
     return false;
 }
 
-bool iOS_Window::resized() const
+bool vsgiOS::iOS_Window::resized() const
 {
-//    const NSRect contentRect = [_view frame];
-//
-//    auto devicePixelScale = _traits->hdpi ? [_window backingScaleFactor] : 1.0f;
-//
-//    uint32_t width = contentRect.size.width * devicePixelScale;
-//    uint32_t height = contentRect.size.height * devicePixelScale;
-//
-//    return (width != _extent2D.width || height != _extent2D.height);
-    return false;
+    const CGRect contentRect = [_view frame];
+
+   // auto devicePixelScale = _traits->hdpi ? [self.window backingScaleFactor] : 1.0f;
+
+    uint32_t width = 100; //contentRect.size.width * devicePixelScale;
+    uint32_t height = 100; //contentRect.size.height * devicePixelScale;
+
+    return (width != _extent2D.width || height != _extent2D.height);
 }
 
-void iOS_Window::resize()
+void vsgiOS::iOS_Window::resize()
 {
 //    const NSRect contentRect = [_view frame];
 //
@@ -227,15 +369,15 @@ void iOS_Window::resize()
 //    _extent2D.width = contentRect.size.width * devicePixelScale;
 //    _extent2D.height = contentRect.size.height * devicePixelScale;
 //
-//    buildSwapchain();
+    buildSwapchain();
 }
 
 
-KeyboardMap::KeyboardMap()
+vsgiOS::KeyboardMap::KeyboardMap()
 {
     _keycodeMap =
     {
-        { 0xFF, KEY_Undefined },
+        { 0xFF, vsg::KEY_Undefined },
 
 //        { kVK_Space, KEY_Space },
 
@@ -277,60 +419,60 @@ KeyboardMap::KeyboardMap()
 //        { kVK_ANSI_Y, KEY_y },
 //        { kVK_ANSI_Z, KEY_z },
 
-        { 'A', KEY_A },
-        { 'B', KEY_B },
-        { 'C', KEY_C },
-        { 'D', KEY_D },
-        { 'E', KEY_E },
-        { 'F', KEY_F },
-        { 'G', KEY_G },
-        { 'H', KEY_H },
-        { 'I', KEY_I },
-        { 'J', KEY_J },
-        { 'K', KEY_K },
-        { 'L', KEY_L },
-        { 'M', KEY_M },
-        { 'N', KEY_N },
-        { 'O', KEY_O },
-        { 'P', KEY_P },
-        { 'Q', KEY_Q },
-        { 'R', KEY_R },
-        { 'S', KEY_S },
-        { 'T', KEY_T },
-        { 'U', KEY_U },
-        { 'V', KEY_V },
-        { 'W', KEY_W },
-        { 'X', KEY_X },
-        { 'Y', KEY_Y },
-        { 'Z', KEY_Z },
+        { 'A', vsg::KEY_A },
+        { 'B', vsg::KEY_B },
+        { 'C', vsg::KEY_C },
+        { 'D', vsg::KEY_D },
+        { 'E', vsg::KEY_E },
+        { 'F', vsg::KEY_F },
+        { 'G', vsg::KEY_G },
+        { 'H', vsg::KEY_H },
+        { 'I', vsg::KEY_I },
+        { 'J', vsg::KEY_J },
+        { 'K', vsg::KEY_K },
+        { 'L', vsg::KEY_L },
+        { 'M', vsg::KEY_M },
+        { 'N', vsg::KEY_N },
+        { 'O', vsg::KEY_O },
+        { 'P', vsg::KEY_P },
+        { 'Q', vsg::KEY_Q },
+        { 'R', vsg::KEY_R },
+        { 'S', vsg::KEY_S },
+        { 'T', vsg::KEY_T },
+        { 'U', vsg::KEY_U },
+        { 'V', vsg::KEY_V },
+        { 'W', vsg::KEY_W },
+        { 'X', vsg::KEY_X },
+        { 'Y', vsg::KEY_Y },
+        { 'Z', vsg::KEY_Z },
 
-        { '!', KEY_Exclaim },
-        { '"', KEY_Quotedbl },
-        { '#', KEY_Hash },
-        { '$', KEY_Dollar },
-        { '&', KEY_Ampersand },
+        { '!', vsg::KEY_Exclaim },
+        { '"', vsg::KEY_Quotedbl },
+        { '#', vsg::KEY_Hash },
+        { '$', vsg::KEY_Dollar },
+        { '&', vsg::KEY_Ampersand },
 //        { kVK_ANSI_Quote, KEY_Quote },
-        { '(', KEY_Leftparen },
-        { ')', KEY_Rightparen },
-        { '*', KEY_Asterisk },
-        { '+', KEY_Plus },
+        { '(', vsg::KEY_Leftparen },
+        { ')', vsg::KEY_Rightparen },
+        { '*', vsg::KEY_Asterisk },
+        { '+', vsg::KEY_Plus },
 //        { kVK_ANSI_Comma, KEY_Comma },
 //        { kVK_ANSI_Minus, KEY_Minus },
 //        { kVK_ANSI_Period, KEY_Period },
 //        { kVK_ANSI_Slash, KEY_Slash },
-        { ':', KEY_Colon },
+        { ':', vsg::KEY_Colon },
 //        { kVK_ANSI_Semicolon, KEY_Semicolon },
-        { '<', KEY_Less },
+        { '<', vsg::KEY_Less },
 //        { kVK_ANSI_Equal, KEY_Equals }, // + isnt an unmodded key, why does windows map is as a virtual??
-        { '>', KEY_Greater },
-        { '?', KEY_Question },
-        { '@', KEY_At},
+        { '>', vsg::KEY_Greater },
+        { '?', vsg::KEY_Question },
+        { '@', vsg::KEY_At},
 //        { kVK_ANSI_LeftBracket, KEY_Leftbracket },
 //        { kVK_ANSI_Backslash, KEY_Backslash },
 //        { kVK_ANSI_RightBracket, KEY_Rightbracket },
-        {'|', KEY_Caret },
-        {'_', KEY_Underscore },
-        {'`', KEY_Backquote },
+        {'|', vsg::KEY_Caret },
+        {'_', vsg::KEY_Underscore },
+        {'`', vsg::KEY_Backquote },
 
 //        { kVK_Delete, KEY_BackSpace }, /* back space, back char */
 //        { kVK_Tab, KEY_Tab },
@@ -529,44 +671,47 @@ KeyboardMap::KeyboardMap()
 //}
 
 
-//bool iOS_Window::handleNSEvent(NSEvent* anEvent)
-//{
-//    switch([anEvent type])
-//    {
+bool vsgiOS::iOS_Window::handleUIEvent(UIEvent* anEvent)
+{
+    switch([anEvent type])
+    {
+        case UIEventTypeTouches:
+            std::cout << "touch event" << std::endl;
+            break;
 //        // mouse events
-//        case NSEventTypeMouseMoved:
-//        case NSEventTypeLeftMouseDown:
-//        case NSEventTypeLeftMouseUp:
-//        case NSEventTypeLeftMouseDragged:
-//        case NSEventTypeRightMouseDown:
-//        case NSEventTypeRightMouseUp:
-//        case NSEventTypeRightMouseDragged:
-//        case NSEventTypeOtherMouseDown:
-//        case NSEventTypeOtherMouseUp:
-//        case NSEventTypeOtherMouseDragged:
+//        case UIEventTypeMouseMoved:
+//        case UIEventTypeLeftMouseDown:
+//        case UIEventTypeLeftMouseUp:
+//        case UIEventTypeLeftMouseDragged:
+//        case UIEventTypeRightMouseDown:
+//        case UIEventTypeRightMouseUp:
+//        case UIEventTypeRightMouseDragged:
+//        case UIEventTypeOtherMouseDown:
+//        case UIEventTypeOtherMouseUp:
+//        case UIEventTypeOtherMouseDragged:
 //        {
-//            NSRect contentRect = [_view frame];
-//            NSPoint pos = [anEvent locationInWindow];
-
+//            CGRect contentRect = [_view frame];
+//            CGPoint pos = [anEvent locationInWindow];
+//
 //            // dpi scale as needed
 //            auto devicePixelScale = _traits->hdpi ? [_window backingScaleFactor] : 1.0f;
 //            contentRect.size.width = contentRect.size.width * devicePixelScale;
 //            contentRect.size.height = contentRect.size.height * devicePixelScale;
-
+//
 //            pos.x = pos.x * devicePixelScale;
 //            pos.y = pos.y * devicePixelScale;
-
-
+//
+//
 //            NSInteger buttonNumber = [anEvent buttonNumber];
 //            NSUInteger pressedButtons = [NSEvent pressedMouseButtons];
-
+//
 //            //std::cout << "NSEventTypeMouseMoved(etc): " << pos.x << ", " << pos.y << std::endl;
-
+//
 //            auto buttonMask = 0;
 //            if(pressedButtons & (1 << 0)) buttonMask |= vsg::BUTTON_MASK_1;
 //            if(pressedButtons & (1 << 1)) buttonMask |= vsg::BUTTON_MASK_2;
 //            if(pressedButtons & (1 << 2)) buttonMask |= vsg::BUTTON_MASK_3;
-
+//
 //            switch([anEvent type])
 //            {
 //                case NSEventTypeMouseMoved:
@@ -604,7 +749,7 @@ KeyboardMap::KeyboardMap()
 //            vsg::KeyModifier keyModifier;
 //            if (!_keyboard->getKeySymbol(anEvent, keySymbol, modifiedKeySymbol, keyModifier))
 //                return false;
-
+//
 //            switch([anEvent type])
 //            {
 //                case NSEventTypeKeyDown:
@@ -619,7 +764,7 @@ KeyboardMap::KeyboardMap()
 //                }
 //                default: break;
 //            }
-
+//
 //            return true;
 //        }
 //        // scrollWheel events
@@ -628,9 +773,9 @@ KeyboardMap::KeyboardMap()
 //            _bufferedEvents.emplace_back(new vsg::ScrollWheelEvent(this, getEventTime([anEvent timestamp]), vsg::vec3([anEvent deltaX], [anEvent deltaY], [anEvent deltaZ])));
 //            return true;
 //        }
-
-//        default: break;
-//    }
-//    return false;
-//}
+//
+        default: break;
+    }
+    return false;
+}
 

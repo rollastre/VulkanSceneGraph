@@ -8,13 +8,11 @@
 #ifndef vsg_iOS_Window_h
 #define vsg_iOS_Window_h
 
-#include "/usr/local/include/vulkan/vulkan_core.h" // do not commit this!
-#include "/usr/local/include/vulkan/vulkan_ios.h" // do not commit this!
-//#include <vulkan/vulkan_core.h>
-//#include <vulkan/vulkan_ios.h>
+
+
 #include <vsg/viewer/Window.h>
 #include <vsg/ui/KeyEvent.h>
-
+#include <vulkan/vulkan_metal.h>
 #include <UIKit/UiKit.h>
 
 @class vsg_iOS_Window;
@@ -47,7 +45,7 @@ namespace vsgiOS
         iOS_Window(const iOS_Window&) = delete;
         iOS_Window operator = (const iOS_Window&) = delete;
 
-        const char* instanceExtensionSurfaceName() const override { return VK_MVK_IOS_SURFACE_EXTENSION_NAME; }
+        const char* instanceExtensionSurfaceName() const override { return VK_EXT_METAL_SURFACE_EXTENSION_NAME; }
 
         bool valid() const override { return _window; }
 
@@ -57,12 +55,12 @@ namespace vsgiOS
 
         void resize() override;
 
-      //  bool handleNSEvent(UIEvent* anEvent);
+        bool handleUIEvent(UIEvent* anEvent);
 
         // native objects
         vsg_iOS_Window* window() { return _window; };
         vsg_iOS_View* view() { return _view; };
-       // CAMetalLayer* layer() { return _metalLayer; };
+        CAMetalLayer* layer() { return _metalLayer; };
 
         vsg::clock::time_point getEventTime(double eventTime)
         {
@@ -79,7 +77,7 @@ namespace vsgiOS
 
         vsg_iOS_Window* _window;
         vsg_iOS_View* _view;
-       // CAMetalLayer* _metalLayer;
+        CAMetalLayer* _metalLayer;
 
         double _first_macos_timestamp = 0;
         vsg::clock::time_point _first_macos_time_point;
