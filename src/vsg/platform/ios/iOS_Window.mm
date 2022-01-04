@@ -28,7 +28,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <UIKit/UIKit.h>
 #include <vulkan/vulkan_metal.h>
 
-
+#include <vsg/viewer/Viewer.h>
 namespace vsg
 {
     // Provide the Window::create(...) implementation that automatically maps to a MacOS_Window
@@ -98,6 +98,7 @@ namespace vsg
 
 @implementation vsg_iOS_ViewController {
     CADisplayLink* _displayLink;
+    vsg::Viewer* vsgViewer;
 }
 
 -(void) viewDidLoad {
@@ -115,6 +116,18 @@ namespace vsg
 
 -(void) renderLoop {
     std::cout << "renderLoop" << std::endl;
+  //  while (true)
+    {
+      if (self->vsgViewer->advanceToNextFrame())
+      {
+          self->vsgViewer->compile();
+          
+          self->vsgViewer->handleEvents();
+          self->vsgViewer->update();
+          self->vsgViewer->recordAndSubmit();
+          self->vsgViewer->present();
+      }
+    }
  }
 
 // Allow device rotation to resize the swapchain
@@ -271,6 +284,7 @@ namespace vsgiOS
             auto res = vkCreateMetalSurfaceEXT(*instance, &surfaceCreateInfo, _instance->getAllocationCallbacks(), &_surface);
             if (res != VK_SUCCESS || _surface == VK_NULL_HANDLE)
                 std::cerr << "[ERROR] Failed creating VkSurface";
+            
         }
         
     };
@@ -279,24 +293,26 @@ namespace vsgiOS
 vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     : Inherit(traits)
 {
+    _keyboard = new KeyboardMap;
     auto vc =  [[vsg_iOS_ViewController alloc] init];
     _view = [ [vsg_iOS_View alloc] initWithVsgWindow:this andTraits:traits];
+    
+    auto devicePixelScale = _traits->hdpi ?  UIScreen.mainScreen.nativeScale : 1.0f;
+  
     vc.view = _view;
     _window = [ [vsg_iOS_Window alloc] initWithVsgWindow:this andTraits:traits];
-
     
     _window.rootViewController = vc;
     
     _metalLayer = (CAMetalLayer*) _view.layer;
     _view.backgroundColor = [UIColor grayColor];
-    [_view becomeFirstResponder]; // TODO needed?
+  //  [_view becomeFirstResponder]; // TODO needed?
   
     
     _window.rootViewController.view  = _view;
     
     [_window makeKeyAndVisible];
     
-    auto devicePixelScale = 1.f; // TODO _traits->hdpi ? [_window backingScaleFactor] : 1.0f;
       
     // we could get the width height from the window?
     uint32_t finalwidth = traits->width * devicePixelScale;
@@ -308,6 +324,9 @@ vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     // manually trigger configure here??
     vsg::clock::time_point event_time = vsg::clock::now();
     _bufferedEvents.emplace_back(new vsg::ConfigureWindowEvent(this, event_time, _traits->x, _traits->y, finalwidth, finalheight));
+
+    traits->nativeWindow = _window;
+    
 
 }
 
@@ -351,24 +370,24 @@ bool vsgiOS::iOS_Window::resized() const
 {
     const CGRect contentRect = [_view frame];
 
-   // auto devicePixelScale = _traits->hdpi ? [self.window backingScaleFactor] : 1.0f;
+    auto devicePixelScale = _traits->hdpi ? UIScreen.mainScreen.nativeScale : 1.0f;
 
-    uint32_t width = 100; //contentRect.size.width * devicePixelScale;
-    uint32_t height = 100; //contentRect.size.height * devicePixelScale;
+    uint32_t width = contentRect.size.width * devicePixelScale;
+    uint32_t height = contentRect.size.height * devicePixelScale;
 
     return (width != _extent2D.width || height != _extent2D.height);
 }
 
 void vsgiOS::iOS_Window::resize()
 {
-//    const NSRect contentRect = [_view frame];
-//
-//    auto devicePixelScale = _traits->hdpi ? [_window backingScaleFactor] : 1.0f;
-//    //[_metalLayer setContentsScale:devicePixelScale];
-//
-//    _extent2D.width = contentRect.size.width * devicePixelScale;
-//    _extent2D.height = contentRect.size.height * devicePixelScale;
-//
+    const CGRect contentRect = [_view frame];
+
+    auto devicePixelScale = _traits->hdpi ? UIScreen.mainScreen.nativeScale  : 1.0f;
+    [_metalLayer setContentsScale:devicePixelScale];
+
+    _extent2D.width = contentRect.size.width * devicePixelScale;
+    _extent2D.height = contentRect.size.height * devicePixelScale;
+
     buildSwapchain();
 }
 
