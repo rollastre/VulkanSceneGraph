@@ -644,7 +644,8 @@ protected:
     // Override point for customization after application launch.
     ref_ptr<WindowTraits> traits = WindowTraits::create();
     
-    auto bounds = [[UIScreen mainScreen] bounds];
+    auto mainScreen =[UIScreen mainScreen];
+    auto bounds = [mainScreen bounds];
     auto size = bounds.size;
     auto origin = bounds.origin;
     traits->x = origin.x;
@@ -654,10 +655,9 @@ protected:
     
     traits->debugLayer = true;
     traits->apiDumpLayer = true;
-    
-    self.vsgWindow = vsg::Window::create(traits);
     self.vsgViewer = vsg::Viewer::create();
-    self.vsgViewer->addWindow(self.vsgWindow);
+    traits->systemConnection = self.vsgViewer;
+    self.vsgWindow = vsg::Window::create(traits);
     
     
     
@@ -799,6 +799,9 @@ protected:
 #endif
     }
     self.vsgViewer->assignRecordAndSubmitTaskAndPresentation({commandGraph});
+    
+    
+    
     self.vsgWindow->getOrCreateRenderPass();
     self.vsgWindow->resize();
   

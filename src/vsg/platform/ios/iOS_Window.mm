@@ -99,36 +99,41 @@ namespace vsg
 @implementation vsg_iOS_ViewController {
     CADisplayLink* _displayLink;
     vsg::Viewer* vsgViewer;
+    vsg_iOS_View* vsgView;
 }
 
--(void) viewDidLoad {
-    [super viewDidLoad];
-
+//-(id) init
+//{
+//    self = [super init];
+//    return self;
+//}
+-(id) initWithVsgView:(vsg_iOS_View*) view andVsgViewer:(vsg::Viewer*) vsgViewer
+{
+    self = [super init];
+    self.view = view;
+    self->vsgView = view;
+    self->vsgViewer = vsgViewer;
+    
     uint32_t fps = 60;
     _displayLink = [CADisplayLink displayLinkWithTarget: self selector: @selector(renderLoop)];
     [_displayLink setPreferredFramesPerSecond: fps];
     [_displayLink addToRunLoop: NSRunLoop.currentRunLoop forMode: NSDefaultRunLoopMode];
-    
-  
-  //  [self.view addSubview:_vsgView];
-    
+   
+    return self;
 }
 
+
 -(void) renderLoop {
-    std::cout << "renderLoop" << std::endl;
-  //  while (true)
+    if (self->vsgViewer->advanceToNextFrame())
     {
-      if (self->vsgViewer->advanceToNextFrame())
-      {
-          self->vsgViewer->compile();
-          
-          self->vsgViewer->handleEvents();
-          self->vsgViewer->update();
-          self->vsgViewer->recordAndSubmit();
-          self->vsgViewer->present();
-      }
+        self->vsgViewer->compile();
+
+        self->vsgViewer->handleEvents();
+        self->vsgViewer->update();
+        self->vsgViewer->recordAndSubmit();
+        self->vsgViewer->present();
     }
- }
+}
 
 // Allow device rotation to resize the swapchain
 -(void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id)coordinator {
@@ -293,27 +298,21 @@ namespace vsgiOS
 vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     : Inherit(traits)
 {
+    auto devicePixelScale = 1;//_traits->hdpi ?  UIScreen.mainScreen.nativeScale : 1.0f;
+  
     _keyboard = new KeyboardMap;
-    auto vc =  [[vsg_iOS_ViewController alloc] init];
     _view = [ [vsg_iOS_View alloc] initWithVsgWindow:this andTraits:traits];
-    
-    auto devicePixelScale = _traits->hdpi ?  UIScreen.mainScreen.nativeScale : 1.0f;
-  
-    vc.view = _view;
     _window = [ [vsg_iOS_Window alloc] initWithVsgWindow:this andTraits:traits];
-    
-    _window.rootViewController = vc;
-    
+    _window.backgroundColor = [UIColor redColor];
+    auto vsgViewer = std::any_cast<vsg::ref_ptr<vsg::Viewer>>(traits->systemConnection);
+    _window.rootViewController = [[vsg_iOS_ViewController alloc] initWithVsgView:_view andVsgViewer:vsgViewer.get()];
     _metalLayer = (CAMetalLayer*) _view.layer;
+    
+    
     _view.backgroundColor = [UIColor grayColor];
-  //  [_view becomeFirstResponder]; // TODO needed?
-  
-    
-    _window.rootViewController.view  = _view;
-    
+    [_view becomeFirstResponder]; // TODO needed?
     [_window makeKeyAndVisible];
     
-      
     // we could get the width height from the window?
     uint32_t finalwidth = traits->width * devicePixelScale;
     uint32_t finalheight = traits->height * devicePixelScale;
@@ -321,13 +320,14 @@ vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     _extent2D.width = finalwidth;
     _extent2D.height = finalheight;
     
+    std::cout << "[Delete this] VSG screen size is " << _extent2D.width << "x" << _extent2D.height << std::endl;
     // manually trigger configure here??
     vsg::clock::time_point event_time = vsg::clock::now();
     _bufferedEvents.emplace_back(new vsg::ConfigureWindowEvent(this, event_time, _traits->x, _traits->y, finalwidth, finalheight));
 
     traits->nativeWindow = _window;
     
-
+    
 }
 
 vsgiOS::iOS_Window::~iOS_Window()
