@@ -50,6 +50,8 @@ namespace vsg
         ref_ptr<RenderPass> renderPass;
         uint32_t subpass;
 
+        int compare(const Object& rhs_object) const override;
+
         void read(Input& input) override;
         void write(Output& output) const override;
 
@@ -57,7 +59,7 @@ namespace vsg
         void compile(Context& context);
 
         // remove the local reference to the Vulkan implementation
-        void release(uint32_t deviceID) { _implementation[deviceID] = {}; }
+        void release(uint32_t viewID) { _implementation[viewID] = {}; }
         void release() { _implementation.clear(); }
 
         VkPipeline vk(uint32_t deviceID) const { return _implementation[deviceID]->_pipeline; }
@@ -89,6 +91,8 @@ namespace vsg
 
         /// pipeline to pass in the vkCmdBindPipeline call;
         ref_ptr<GraphicsPipeline> pipeline;
+
+        int compare(const Object& rhs_object) const override;
 
         void read(Input& input) override;
         void write(Output& output) const override;

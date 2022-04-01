@@ -23,7 +23,7 @@ namespace vsg
     class VSG_DECLSPEC VertexIndexDraw : public Inherit<Command, VertexIndexDraw>
     {
     public:
-        VertexIndexDraw(Allocator* allocator = nullptr);
+        VertexIndexDraw();
 
         void read(Input& input) override;
         void write(Output& output) const override;
@@ -40,22 +40,23 @@ namespace vsg
         uint32_t firstInstance = 0;
 
         uint32_t firstBinding = 0;
-        DataList arrays;
-        ref_ptr<Data> indices;
+        BufferInfoList arrays;
+        ref_ptr<BufferInfo> indices;
+
+        void assignArrays(const DataList& in_arrays);
+        void assignIndices(ref_ptr<Data> in_indices);
 
     protected:
         virtual ~VertexIndexDraw();
 
         struct VulkanData
         {
-            std::vector<ref_ptr<Buffer>> buffers;
             std::vector<VkBuffer> vkBuffers;
             std::vector<VkDeviceSize> offsets;
-            BufferInfo bufferInfo;
-            VkIndexType indexType = VK_INDEX_TYPE_UINT16;
         };
 
         vk_buffer<VulkanData> _vulkanData;
+        VkIndexType indexType = VK_INDEX_TYPE_UINT16;
     };
     VSG_type_name(vsg::VertexIndexDraw)
 

@@ -66,7 +66,7 @@ VkResult RecordAndSubmitTask::start()
     if (current_fence->hasDependencies())
     {
         uint64_t timeout = std::numeric_limits<uint64_t>::max();
-        if (VkResult result; (result = current_fence->wait(timeout)) != VK_SUCCESS) return result;
+        if (VkResult result = current_fence->wait(timeout); result != VK_SUCCESS) return result;
 
         current_fence->resetFenceAndDependencies();
     }
@@ -124,27 +124,6 @@ VkResult RecordAndSubmitTask::finish(CommandBuffers& recordedCommandBuffers)
     {
         vk_waitSemaphores.emplace_back(*(semaphore));
         vk_waitStages.emplace_back(semaphore->pipelineStageFlags());
-    }
-
-    if (databasePager)
-    {
-        for (auto& semaphore : databasePager->getSemaphores())
-        {
-            if (semaphore->numDependentSubmissions().load() > 1)
-            {
-                std::cout << "    Warning: Viewer::submitNextFrame() waitSemaphore " << *(semaphore->data()) << " " << semaphore->numDependentSubmissions().load() << std::endl;
-            }
-            else
-            {
-                // std::cout<<"    Viewer::submitNextFrame() waitSemaphore "<<*(semaphore->data())<<" "<<semaphore->numDependentSubmissions().load()<<std::endl;
-            }
-
-            vk_waitSemaphores.emplace_back(*semaphore);
-            vk_waitStages.emplace_back(semaphore->pipelineStageFlags());
-
-            semaphore->numDependentSubmissions().fetch_add(1);
-            current_fence->dependentSemaphores().emplace_back(semaphore);
-        }
     }
 
     for (auto& semaphore : signalSemaphores)

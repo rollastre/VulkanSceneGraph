@@ -453,9 +453,13 @@ void Visitor::apply(CullNode& value)
 {
     apply(static_cast<Node&>(value));
 }
-void Visitor::apply(MatrixTransform& value)
+void Visitor::apply(Transform& value)
 {
     apply(static_cast<Group&>(value));
+}
+void Visitor::apply(MatrixTransform& value)
+{
+    apply(static_cast<Transform&>(value));
 }
 void Visitor::apply(Geometry& value)
 {
@@ -477,15 +481,35 @@ void Visitor::apply(Switch& value)
 {
     apply(static_cast<Node&>(value));
 }
-void Visitor::apply(MaskGroup& value)
+void Visitor::apply(Light& value)
 {
     apply(static_cast<Node&>(value));
+}
+void Visitor::apply(AmbientLight& value)
+{
+    apply(static_cast<Light&>(value));
+}
+void Visitor::apply(DirectionalLight& value)
+{
+    apply(static_cast<Light&>(value));
+}
+void Visitor::apply(PointLight& value)
+{
+    apply(static_cast<Light&>(value));
+}
+void Visitor::apply(SpotLight& value)
+{
+    apply(static_cast<Light&>(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Vulkan Object
 //
+void Visitor::apply(BufferInfo& value)
+{
+    apply(static_cast<Object&>(value));
+}
 void Visitor::apply(Command& value)
 {
     apply(static_cast<Node&>(value));
@@ -493,6 +517,10 @@ void Visitor::apply(Command& value)
 void Visitor::apply(StateCommand& value)
 {
     apply(static_cast<Command&>(value));
+}
+void Visitor::apply(StateSwitch& value)
+{
+    apply(static_cast<StateCommand&>(value));
 }
 void Visitor::apply(CommandBuffer& value)
 {
@@ -715,6 +743,15 @@ void Visitor::apply(TerminateEvent& event)
 void Visitor::apply(FrameEvent& event)
 {
     apply(static_cast<UIEvent&>(event));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// util classes
+//
+void Visitor::apply(AnimationPath& animationPath)
+{
+    apply(static_cast<Object&>(animationPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

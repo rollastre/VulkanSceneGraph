@@ -20,6 +20,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 namespace vsg
 {
 
+    // forward declare
+    class ViewDependentState;
+
+    /// CommandBuffer encapsulates VkCommandBuffer
     class VSG_DECLSPEC CommandBuffer : public Inherit<Object, CommandBuffer>
     {
     public:
@@ -33,6 +37,9 @@ namespace vsg
 
         const uint32_t deviceID;
         uint32_t viewID = 0;
+        Mask traversalMask = MASK_ALL;
+        Mask overrideMask = MASK_OFF;
+        ViewDependentState* viewDependentState = nullptr;
 
         VkCommandBufferLevel level() const { return _level; }
 

@@ -24,7 +24,6 @@ namespace vsg
     {
     public:
         External();
-        explicit External(Allocator* allocator);
         explicit External(const PathObjects& entries);
         External(const std::string& filename, ref_ptr<Object> object);
 
@@ -44,7 +43,7 @@ namespace vsg
         void read(Input& input) override;
         void write(Output& output) const override;
 
-        /// custom readwrier/writer options
+        /// custom readwriter/writer options
         ref_ptr<Options> options;
 
         /// list of path/object pairs

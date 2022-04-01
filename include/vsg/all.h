@@ -24,15 +24,19 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/core/Export.h>
 #include <vsg/core/External.h>
 #include <vsg/core/Inherit.h>
+#include <vsg/core/Mask.h>
+#include <vsg/core/MemorySlots.h>
 #include <vsg/core/Object.h>
 #include <vsg/core/Objects.h>
 #include <vsg/core/ScratchMemory.h>
 #include <vsg/core/Value.h>
 #include <vsg/core/Version.h>
 #include <vsg/core/Visitor.h>
+#include <vsg/core/compare.h>
 #include <vsg/core/observer_ptr.h>
 #include <vsg/core/ref_ptr.h>
 #include <vsg/core/type_name.h>
+#include <vsg/core/visit.h>
 
 // Maths header files
 #include <vsg/maths/box.h>
@@ -47,6 +51,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/maths/vec4.h>
 
 // Node header files
+#include <vsg/nodes/AbsoluteTransform.h>
 #include <vsg/nodes/Bin.h>
 #include <vsg/nodes/CullGroup.h>
 #include <vsg/nodes/CullNode.h>
@@ -54,13 +59,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/nodes/Geometry.h>
 #include <vsg/nodes/Group.h>
 #include <vsg/nodes/LOD.h>
-#include <vsg/nodes/MaskGroup.h>
+#include <vsg/nodes/Light.h>
 #include <vsg/nodes/MatrixTransform.h>
 #include <vsg/nodes/Node.h>
 #include <vsg/nodes/PagedLOD.h>
 #include <vsg/nodes/QuadGroup.h>
 #include <vsg/nodes/StateGroup.h>
 #include <vsg/nodes/Switch.h>
+#include <vsg/nodes/Transform.h>
 #include <vsg/nodes/VertexIndexDraw.h>
 
 // Commands header files
@@ -84,6 +90,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/commands/NextSubPass.h>
 #include <vsg/commands/PipelineBarrier.h>
 #include <vsg/commands/PushConstants.h>
+#include <vsg/commands/ResolveImage.h>
+#include <vsg/commands/SetDepthBias.h>
+#include <vsg/commands/SetLineWidth.h>
+#include <vsg/commands/SetScissor.h>
+#include <vsg/commands/SetViewport.h>
 
 // State header files
 #include <vsg/state/Buffer.h>
@@ -112,8 +123,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/state/ShaderModule.h>
 #include <vsg/state/ShaderStage.h>
 #include <vsg/state/StateCommand.h>
+#include <vsg/state/StateSwitch.h>
 #include <vsg/state/TessellationState.h>
 #include <vsg/state/VertexInputState.h>
+#include <vsg/state/ViewDependentState.h>
 #include <vsg/state/ViewportState.h>
 #include <vsg/state/material.h>
 
@@ -139,6 +152,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 // User Interface abstraction header files
 #include <vsg/ui/ApplicationEvent.h>
 #include <vsg/ui/CollectEvents.h>
+#include <vsg/ui/FrameStamp.h>
 #include <vsg/ui/KeyEvent.h>
 #include <vsg/ui/PlayEvents.h>
 #include <vsg/ui/PointerEvent.h>
@@ -166,6 +180,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/viewer/ViewMatrix.h>
 #include <vsg/viewer/Viewer.h>
 #include <vsg/viewer/Window.h>
+#include <vsg/viewer/WindowAdapter.h>
 #include <vsg/viewer/WindowResizeHandler.h>
 #include <vsg/viewer/WindowTraits.h>
 
@@ -186,6 +201,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/vk/PhysicalDevice.h>
 #include <vsg/vk/Queue.h>
 #include <vsg/vk/RenderPass.h>
+#include <vsg/vk/ResourceRequirements.h>
 #include <vsg/vk/Semaphore.h>
 #include <vsg/vk/ShaderCompiler.h>
 #include <vsg/vk/State.h>
@@ -209,11 +225,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/io/ReaderWriter.h>
 #include <vsg/io/VSG.h>
 #include <vsg/io/read.h>
+#include <vsg/io/read_line.h>
+#include <vsg/io/spirv.h>
 #include <vsg/io/stream.h>
 #include <vsg/io/write.h>
 
 // Utility header files
+#include <vsg/utils/AnimationPath.h>
+#include <vsg/utils/Builder.h>
 #include <vsg/utils/CommandLine.h>
+#include <vsg/utils/SharedObjects.h>
 
 // Introspection header files
 #include <vsg/introspection/c_interface.h>

@@ -13,26 +13,27 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 </editor-fold> */
 
 #include <vsg/nodes/Group.h>
-
+#include <vsg/state/ViewDependentState.h>
 #include <vsg/viewer/Camera.h>
 #include <vsg/viewer/Window.h>
 
 namespace vsg
 {
+
     /// View class is Group class that pairs a Camera that defines the view with a subgraph that defines the scene that is being viewed/rendered
     class VSG_DECLSPEC View : public Inherit<Group, View>
     {
     public:
         View();
 
-        View(ref_ptr<Camera> in_camera, ref_ptr<Node> in_scenegraph = {});
+        explicit View(ref_ptr<Camera> in_camera, ref_ptr<Node> in_scenegraph = {});
 
         template<class N, class V>
         static void t_accept(N& node, V& visitor)
         {
-            if ((visitor.traversalMask & (visitor.overrideMask | node.mask)) == 0) return;
+            if ((visitor.traversalMask & (visitor.overrideMask | node.mask)) == MASK_OFF) return;
 
-            uint32_t cached_traversalMask = visitor.traversalMask;
+            auto cached_traversalMask = visitor.traversalMask;
 
             visitor.traversalMask = visitor.traversalMask & node.mask;
 
@@ -48,16 +49,23 @@ namespace vsg
         /// camera controls the viewport state and projection and view matrices
         ref_ptr<Camera> camera;
 
-        /// viewID is automatically assigned by Viewer::compile()
-        uint32_t viewID = 0;
+        /// viewID is automatically assigned in View constructor
+        const uint32_t viewID = 0;
 
         /// mask that controls traversal of the View's subgraph
-        /// View is visted if the (visitor.traversalMask & view.mask) != 0,
+        /// View is visited if the (visitor.traversalMask & view.mask) != 0,
         /// and when it is visited the visitor.traversalMask is &'ed with the mask to give the traversalMask to use in the subgraph.
-        uint32_t mask = 0xffffff;
+        Mask mask = MASK_ALL;
 
         /// bins
         std::vector<ref_ptr<Bin>> bins;
+
+        /// view dependent state used for positional state like lighting, texgen and clipping
+        ref_ptr<ViewDependentState> viewDependentState;
+
+    protected:
+        virtual ~View();
     };
+    VSG_type_name(vsg::View);
 
 } // namespace vsg

@@ -41,7 +41,6 @@ void Window::clear()
     _swapchain = 0;
 
     _depthImage = 0;
-    _depthImageMemory = 0;
     _depthImageView = 0;
 
     _renderPass = 0;
@@ -78,7 +77,7 @@ void Window::setInstance(ref_ptr<Instance> instance)
     _instance = instance;
 }
 
-Instance* Window::getOrCreateInstance()
+ref_ptr<Instance> Window::getOrCreateInstance()
 {
     if (!_instance) _initInstance();
     return _instance;
@@ -89,7 +88,7 @@ void Window::setSurface(ref_ptr<Surface> surface)
     _surface = surface;
 }
 
-Surface* Window::getOrCreateSurface()
+ref_ptr<Surface> Window::getOrCreateSurface()
 {
     if (!_surface) _initSurface();
     return _surface;
@@ -100,9 +99,9 @@ void Window::setPhysicalDevice(ref_ptr<PhysicalDevice> physicalDevice)
     _physicalDevice = physicalDevice;
 }
 
-PhysicalDevice* Window::getOrCreatePhysicalDevice()
+ref_ptr<PhysicalDevice> Window::getOrCreatePhysicalDevice()
 {
-    if (!_physicalDevice) _initDevice();
+    if (!_physicalDevice) _initPhysicalDevice();
     return _physicalDevice;
 }
 
@@ -116,7 +115,7 @@ void Window::setDevice(ref_ptr<Device> device)
     }
 }
 
-Device* Window::getOrCreateDevice()
+ref_ptr<Device> Window::getOrCreateDevice()
 {
     if (!_device) _initDevice();
     return _device;
@@ -127,25 +126,25 @@ void Window::setRenderPass(ref_ptr<RenderPass> renderPass)
     _renderPass = renderPass;
 }
 
-RenderPass* Window::getOrCreateRenderPass()
+ref_ptr<RenderPass> Window::getOrCreateRenderPass()
 {
     if (!_renderPass) _initRenderPass();
     return _renderPass;
 }
 
-Swapchain* Window::getOrCreateSwapchain()
+ref_ptr<Swapchain> Window::getOrCreateSwapchain()
 {
     if (!_swapchain) _initSwapchain();
     return _swapchain;
 }
 
-Image* Window::getOrCreateDepthImage()
+ref_ptr<Image> Window::getOrCreateDepthImage()
 {
     if (!_depthImage) _initSwapchain();
     return _depthImage;
 }
 
-ImageView* Window::getOrCreateDepthImageView()
+ref_ptr<ImageView> Window::getOrCreateDepthImageView()
 {
     if (!_depthImageView) _initSwapchain();
     return _depthImageView;
@@ -172,6 +171,19 @@ void Window::_initInstance()
 
     vsg::Names validatedNames = vsg::validateInstancelayerNames(requestedLayers);
     _instance = vsg::Instance::create(instanceExtensions, validatedNames, _traits->vulkanVersion);
+}
+
+void Window::_initPhysicalDevice()
+{
+    if (!_instance) _initInstance();
+    if (!_surface) _initSurface();
+
+    // if required set up physical device
+    if (!_physicalDevice)
+    {
+        _physicalDevice = _instance->getPhysicalDevice(_traits->queueFlags, _surface, _traits->deviceTypePreferences);
+        if (!_physicalDevice) throw Exception{"Error: vsg::Window::create(...) failed to create Window,  no suitable Vulkan PhysicalDevice available.", VK_ERROR_INVALID_EXTERNAL_HANDLE};
+    }
 }
 
 void Window::_initFormats()
@@ -205,14 +217,10 @@ void Window::_initFormats()
 
 void Window::_initDevice()
 {
-    if (!_instance) _initInstance();
-    if (!_surface) _initSurface();
-
     // if required set up physical device
     if (!_physicalDevice)
     {
-        _physicalDevice = _instance->getPhysicalDevice(_traits->queueFlags, _surface, _traits->deviceTypePreferences);
-        if (!_physicalDevice) throw Exception{"Error: vsg::Window::create(...) failed to create Window,  no suitable Vulkan PhysicalDevice available.", VK_ERROR_INVALID_EXTERNAL_HANDLE};
+        _initPhysicalDevice();
     }
 
     // set up logical device
@@ -242,13 +250,15 @@ void Window::_initRenderPass()
 {
     if (!_device) _initDevice();
 
+    bool requiresDepthRead = (_traits->depthImageUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0;
+
     if (_framebufferSamples == VK_SAMPLE_COUNT_1_BIT)
     {
-        _renderPass = vsg::createRenderPass(_device, _imageFormat.format, _depthFormat);
+        _renderPass = vsg::createRenderPass(_device, _imageFormat.format, _depthFormat, requiresDepthRead);
     }
     else
     {
-        _renderPass = vsg::createMultisampledRenderPass(_device, _imageFormat.format, _depthFormat, _framebufferSamples);
+        _renderPass = vsg::createMultisampledRenderPass(_device, _imageFormat.format, _depthFormat, _framebufferSamples, requiresDepthRead);
     }
 }
 
@@ -273,21 +283,16 @@ void Window::buildSwapchain()
 
         _depthImageView = 0;
         _depthImage = 0;
-        _depthImageMemory = 0;
 
         _multisampleImage = 0;
         _multisampleImageView = 0;
-
-        _swapchain = 0;
     }
 
     // is width and height even required here as the surface appear to control it.
-    _swapchain = Swapchain::create(_physicalDevice, _device, _surface, _extent2D.width, _extent2D.height, _traits->swapchainPreferences);
+    _swapchain = Swapchain::create(_physicalDevice, _device, _surface, _extent2D.width, _extent2D.height, _traits->swapchainPreferences, _swapchain);
 
     // pass back the extents used by the swap chain.
     _extent2D = _swapchain->getExtent();
-
-    auto deviceID = _device->deviceID;
 
     bool multisampling = _framebufferSamples != VK_SAMPLE_COUNT_1_BIT;
     if (multisampling)
@@ -302,19 +307,20 @@ void Window::buildSwapchain()
         _multisampleImage->arrayLayers = 1;
         _multisampleImage->samples = _framebufferSamples;
         _multisampleImage->tiling = VK_IMAGE_TILING_OPTIMAL;
-        _multisampleImage->usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        _multisampleImage->usage = _traits->swapchainPreferences.imageUsage;
         _multisampleImage->initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         _multisampleImage->flags = 0;
         _multisampleImage->sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
         _multisampleImage->compile(_device);
-
-        auto colorMemory = DeviceMemory::create(_device, _multisampleImage->getMemoryRequirements(deviceID), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        _multisampleImage->bind(colorMemory, 0);
+        _multisampleImage->allocateAndBindMemory(_device);
 
         _multisampleImageView = ImageView::create(_multisampleImage, VK_IMAGE_ASPECT_COLOR_BIT);
         _multisampleImageView->compile(_device);
     }
+
+    bool requiresDepthRead = (_traits->depthImageUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0;
+    bool requiresDepthResolve = (multisampling && requiresDepthRead);
 
     // create depth buffer
     _depthImage = Image::create();
@@ -327,18 +333,42 @@ void Window::buildSwapchain()
     _depthImage->format = _depthFormat;
     _depthImage->tiling = VK_IMAGE_TILING_OPTIMAL;
     _depthImage->initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    _depthImage->usage = _traits->depthImageUsage;
     _depthImage->samples = _framebufferSamples;
     _depthImage->sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    _depthImage->usage = _traits->depthImageUsage;
 
     _depthImage->compile(_device);
-
-    _depthImageMemory = DeviceMemory::create(_device, _depthImage->getMemoryRequirements(deviceID), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    _depthImage->bind(_depthImageMemory, 0);
+    _depthImage->allocateAndBindMemory(_device);
 
     _depthImageView = ImageView::create(_depthImage);
     _depthImageView->compile(_device);
+
+    if (requiresDepthResolve)
+    {
+        _multisampleDepthImage = _depthImage;
+        _multisampleDepthImageView = _depthImageView;
+
+        // create depth buffer
+        _depthImage = Image::create();
+        _depthImage->imageType = VK_IMAGE_TYPE_2D;
+        _depthImage->extent.width = _extent2D.width;
+        _depthImage->extent.height = _extent2D.height;
+        _depthImage->extent.depth = 1;
+        _depthImage->mipLevels = 1;
+        _depthImage->arrayLayers = 1;
+        _depthImage->format = _depthFormat;
+        _depthImage->tiling = VK_IMAGE_TILING_OPTIMAL;
+        _depthImage->initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        _depthImage->usage = _traits->depthImageUsage;
+        _depthImage->samples = VK_SAMPLE_COUNT_1_BIT;
+        _depthImage->sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        _depthImage->compile(_device);
+        _depthImage->allocateAndBindMemory(_device);
+
+        _depthImageView = ImageView::create(_depthImage);
+        _depthImageView->compile(_device);
+    }
 
     int graphicsFamily = -1;
     std::tie(graphicsFamily, std::ignore) = _physicalDevice->getQueueFamily(VK_QUEUE_GRAPHICS_BIT, _surface);
@@ -352,18 +382,24 @@ void Window::buildSwapchain()
     for (size_t i = 0; i < imageViews.size(); ++i)
     {
         vsg::ImageViews attachments;
-        if (multisampling)
+        if (_multisampleImageView)
         {
             attachments.push_back(_multisampleImageView);
         }
         attachments.push_back(imageViews[i]);
+
+        if (_multisampleDepthImageView)
+        {
+            attachments.push_back(_multisampleDepthImageView);
+        }
         attachments.push_back(_depthImageView);
 
         ref_ptr<Framebuffer> fb = Framebuffer::create(_renderPass, attachments, _extent2D.width, _extent2D.height, 1);
 
         ref_ptr<Semaphore> ias = vsg::Semaphore::create(_device, _traits->imageAvailableSemaphoreWaitFlag);
 
-        _frames.push_back({multisampling ? _multisampleImageView : imageViews[i], fb, ias});
+        //_frames.push_back({multisampling ? _multisampleImageView : imageViews[i], fb, ias});
+        _frames.push_back({imageViews[i], fb, ias});
         _indices.push_back(initial_indexValue);
     }
 
@@ -415,7 +451,7 @@ VkResult Window::acquireNextImage(uint64_t timeout)
         _availableSemaphore.swap(_frames[imageIndex].imageAvailableSemaphore);
 
         // shift up previous frame indices
-        for (size_t i = 1; i < _indices.size(); ++i)
+        for (size_t i = _indices.size() - 1; i > 0; --i)
         {
             _indices[i] = _indices[i - 1];
         }
@@ -429,4 +465,16 @@ VkResult Window::acquireNextImage(uint64_t timeout)
     }
 
     return result;
+}
+
+bool Window::pollEvents(vsg::UIEvents& events)
+{
+    if (bufferedEvents.size() > 0)
+    {
+        events.splice(events.end(), bufferedEvents);
+        bufferedEvents.clear();
+        return true;
+    }
+
+    return false;
 }

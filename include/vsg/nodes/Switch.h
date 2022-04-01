@@ -13,7 +13,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 </editor-fold> */
 
 #include <vsg/core/ref_ptr.h>
-
 #include <vsg/nodes/Node.h>
 
 #include <vector>
@@ -24,12 +23,15 @@ namespace vsg
     class VSG_DECLSPEC Switch : public Inherit<Node, Switch>
     {
     public:
-        Switch(Allocator* allocator = nullptr);
+        explicit Switch();
 
         template<class N, class V>
         static void t_traverse(N& node, V& visitor)
         {
-            for (auto& child : node.children) child.node->accept(visitor);
+            for (auto& child : node.children)
+            {
+                if ((visitor.traversalMask & (visitor.overrideMask | child.mask)) != MASK_OFF) child.node->accept(visitor);
+            }
         }
 
         void traverse(Visitor& visitor) override { t_traverse(*this, visitor); }
@@ -41,12 +43,15 @@ namespace vsg
 
         struct Child
         {
-            bool enabled = true;
+            Mask mask = MASK_ALL;
             ref_ptr<Node> node;
         };
 
         using Children = std::vector<Child>;
         Children children;
+
+        /// add a child to the back of the children list.
+        void addChild(Mask mask, ref_ptr<Node> child);
 
         /// add a child to the back of the children list.
         void addChild(bool enabled, ref_ptr<Node> child);
@@ -61,5 +66,7 @@ namespace vsg
         virtual ~Switch();
     };
     VSG_type_name(vsg::Switch);
+
+    inline uint32_t boolToMask(bool enabled) { return enabled ? uint32_t(0xffffff) : uint32_t(0x0); }
 
 } // namespace vsg

@@ -13,8 +13,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/io/ObjectCache.h>
 #include <vsg/io/Options.h>
 #include <vsg/io/ReaderWriter.h>
+#include <vsg/state/DescriptorSetLayout.h>
 #include <vsg/threading/OperationThreads.h>
 #include <vsg/utils/CommandLine.h>
+#include <vsg/utils/SharedObjects.h>
 
 using namespace vsg;
 
@@ -22,11 +24,11 @@ Options::Options()
 {
     getOrCreateUniqueAuxiliary();
 
-    formatCoordinateConventions["gltf"] = CoordinateConvention::Y_UP;
-    formatCoordinateConventions["glb"] = CoordinateConvention::Y_UP;
-    formatCoordinateConventions["dae"] = CoordinateConvention::Y_UP;
-    formatCoordinateConventions["stl"] = CoordinateConvention::NO_PREFERENCE;
-    formatCoordinateConventions["obj"] = CoordinateConvention::NO_PREFERENCE;
+    formatCoordinateConventions[".gltf"] = CoordinateConvention::Y_UP;
+    formatCoordinateConventions[".glb"] = CoordinateConvention::Y_UP;
+    formatCoordinateConventions[".dae"] = CoordinateConvention::Y_UP;
+    formatCoordinateConventions[".stl"] = CoordinateConvention::NO_PREFERENCE;
+    formatCoordinateConventions[".obj"] = CoordinateConvention::NO_PREFERENCE;
 }
 
 Options::Options(const Options& options) :
@@ -44,6 +46,8 @@ Options::Options(const Options& options) :
     formatCoordinateConventions(options.formatCoordinateConventions)
 {
     getOrCreateUniqueAuxiliary();
+    // copy any meta data.
+    if (options.getAuxiliary()) getAuxiliary()->getObjectMap() = options.getAuxiliary()->getObjectMap();
 }
 
 Options::~Options()
@@ -125,4 +129,15 @@ bool Options::readOptions(CommandLine& arguments)
     if (arguments.read("--file-cache", fileCache)) read = true;
 
     return read;
+}
+
+ref_ptr<const vsg::Options> vsg::prependPathToOptionsIfRequired(const vsg::Path& filename, ref_ptr<const vsg::Options> options)
+{
+    auto path = filePath(filename);
+    if (path.empty()) return options;
+
+    auto duplicate = vsg::Options::create(*options);
+    duplicate->paths.insert(duplicate->paths.begin(), path);
+
+    return duplicate;
 }

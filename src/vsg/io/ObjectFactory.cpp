@@ -19,7 +19,7 @@ using namespace vsg;
 
 ref_ptr<ObjectFactory>& ObjectFactory::instance()
 {
-    // declare the ObjectFactory singleton as static to be initialized on first invocation of the instance() method.  Note, this currently assumes that initialization won't be mult-threaded.
+    // declare the ObjectFactory singleton as static to be initialized on first invocation of the instance() method.  Note, this currently assumes that initialization won't be multi-threaded.
     static ref_ptr<ObjectFactory> s_ObjectFactory(new ObjectFactory);
     return s_ObjectFactory;
 }
@@ -59,6 +59,12 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_new(vsg::materialValue);
     VSG_REGISTER_new(vsg::PhongMaterialValue);
     VSG_REGISTER_new(vsg::PbrMaterialValue);
+    VSG_REGISTER_new(vsg::sphereValue);
+    VSG_REGISTER_new(vsg::boxValue);
+    VSG_REGISTER_new(vsg::quatValue);
+    VSG_REGISTER_new(vsg::dsphereValue);
+    VSG_REGISTER_new(vsg::dboxValue);
+    VSG_REGISTER_new(vsg::dquatValue);
 
     // arrays
     VSG_REGISTER_new(vsg::byteArray);
@@ -169,13 +175,18 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_create(vsg::CullNode);
     VSG_REGISTER_create(vsg::LOD);
     VSG_REGISTER_create(vsg::PagedLOD);
+    VSG_REGISTER_create(vsg::AbsoluteTransform);
     VSG_REGISTER_create(vsg::MatrixTransform);
     VSG_REGISTER_create(vsg::Geometry);
     VSG_REGISTER_create(vsg::VertexIndexDraw);
     VSG_REGISTER_create(vsg::Bin);
     VSG_REGISTER_create(vsg::DepthSorted);
     VSG_REGISTER_create(vsg::Switch);
-    VSG_REGISTER_create(vsg::MaskGroup);
+    VSG_REGISTER_create(vsg::Light);
+    VSG_REGISTER_create(vsg::AmbientLight);
+    VSG_REGISTER_create(vsg::DirectionalLight);
+    VSG_REGISTER_create(vsg::PointLight);
+    VSG_REGISTER_create(vsg::SpotLight);
 
     // vulkan objects
     VSG_REGISTER_create(vsg::BindGraphicsPipeline);
@@ -202,13 +213,16 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_create(vsg::BindDescriptorSet);
     VSG_REGISTER_create(vsg::BindVertexBuffers);
     VSG_REGISTER_create(vsg::BindIndexBuffer);
+    VSG_REGISTER_create(vsg::BindViewDescriptorSets);
     VSG_REGISTER_create(vsg::DescriptorSet);
     VSG_REGISTER_create(vsg::DescriptorSetLayout);
+    VSG_REGISTER_create(vsg::ViewDescriptorSetLayout);
     VSG_REGISTER_create(vsg::DescriptorImage);
     VSG_REGISTER_create(vsg::DescriptorBuffer);
     VSG_REGISTER_create(vsg::Sampler);
     VSG_REGISTER_create(vsg::PushConstants);
     VSG_REGISTER_create(vsg::ResourceHints);
+    VSG_REGISTER_create(vsg::StateSwitch);
 
     // commands
     VSG_REGISTER_create(vsg::Draw);
@@ -248,6 +262,11 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_create(vsg::KeyPressEvent);
     VSG_REGISTER_create(vsg::KeyReleaseEvent);
 
+    // viewer
+    VSG_REGISTER_create(vsg::Camera);
+    VSG_REGISTER_create(vsg::LookAt);
+    VSG_REGISTER_create(vsg::Perspective);
+
     // rtx
     VSG_REGISTER_create(vsg::DrawMeshTasks);
     VSG_REGISTER_create(vsg::DrawMeshTasksIndirect);
@@ -257,6 +276,11 @@ ObjectFactory::ObjectFactory()
     VSG_REGISTER_create(vsg::Options);
     VSG_REGISTER_create(vsg::CompositeReaderWriter);
     VSG_REGISTER_create(vsg::VSG);
+    VSG_REGISTER_create(vsg::ArrayState);
+    VSG_REGISTER_create(vsg::NullArrayState);
+
+    // utils
+    VSG_REGISTER_create(vsg::AnimationPath);
 
     // application
     VSG_REGISTER_create(vsg::EllipsoidModel);

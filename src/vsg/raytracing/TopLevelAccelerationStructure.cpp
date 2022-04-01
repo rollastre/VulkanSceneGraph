@@ -24,7 +24,6 @@ using namespace vsg;
 #define TRANSFER_BUFFERS 0
 
 GeometryInstance::GeometryInstance() :
-    Inherit(nullptr),
     id(0),
     mask(0xff),
     shaderOffset(0),
@@ -32,8 +31,8 @@ GeometryInstance::GeometryInstance() :
 {
 }
 
-TopLevelAccelerationStructure::TopLevelAccelerationStructure(Device* device, Allocator* allocator) :
-    Inherit(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, device, allocator)
+TopLevelAccelerationStructure::TopLevelAccelerationStructure(Device* device) :
+    Inherit(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR, device)
 {
 }
 
@@ -60,7 +59,7 @@ void TopLevelAccelerationStructure::compile(Context& context)
 #else
     auto instanceBufferInfo = vsg::createHostVisibleBuffer(context.device, dataList, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, VK_SHARING_MODE_EXCLUSIVE);
     vsg::copyDataListToBuffers(context.device, instanceBufferInfo);
-    _instanceBuffer = instanceBufferInfo[0].buffer;
+    _instanceBuffer = instanceBufferInfo[0]->buffer;
 #endif
     Extensions* extensions = Extensions::Get(context.device, true);
     VkBufferDeviceAddressInfo bufferDeviceAddressInfo{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, _instanceBuffer->vk(context.deviceID)};
@@ -78,5 +77,5 @@ void TopLevelAccelerationStructure::compile(Context& context)
 
     Inherit::compile(context);
 
-    context.buildAccelerationStructureCommands.push_back(BuildAccelerationStructureCommand::create(context.device, _accelerationStructureBuildGeometryInfo, _accelerationStructure, _geometryPrimitiveCounts, context.getAllocator()));
+    context.buildAccelerationStructureCommands.push_back(BuildAccelerationStructureCommand::create(context.device, _accelerationStructureBuildGeometryInfo, _accelerationStructure, _geometryPrimitiveCounts));
 }

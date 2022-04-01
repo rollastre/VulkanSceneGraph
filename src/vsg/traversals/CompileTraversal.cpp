@@ -26,6 +26,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/viewer/CommandGraph.h>
 #include <vsg/viewer/RenderGraph.h>
 #include <vsg/viewer/View.h>
+#include <vsg/viewer/Viewer.h>
 #include <vsg/vk/CommandBuffer.h>
 #include <vsg/vk/RenderPass.h>
 #include <vsg/vk/State.h>
@@ -34,197 +35,119 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 using namespace vsg;
 
-/////////////////////////////////////////////////////////////////////
-//
-// CollectDescriptorStats
-//
-CollectDescriptorStats::CollectDescriptorStats()
-{
-    binStack.push(BinDetails{});
-}
-
-void CollectDescriptorStats::apply(const Object& object)
-{
-    object.traverse(*this);
-}
-
-bool CollectDescriptorStats::checkForResourceHints(const Object& object)
-{
-    auto resourceHints = object.getObject<ResourceHints>("ResourceHints");
-    if (resourceHints)
-    {
-        apply(*resourceHints);
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
-
-void CollectDescriptorStats::apply(const ResourceHints& resourceHints)
-{
-    if (resourceHints.maxSlot > maxSlot) maxSlot = resourceHints.maxSlot;
-
-    if (!resourceHints.descriptorPoolSizes.empty() || resourceHints.numDescriptorSets > 0)
-    {
-        externalNumDescriptorSets += resourceHints.numDescriptorSets;
-
-        for (auto& [type, count] : resourceHints.descriptorPoolSizes)
-        {
-            descriptorTypeMap[type] += count;
-        }
-    }
-}
-
-void CollectDescriptorStats::apply(const Node& node)
-{
-    bool hasResourceHints = checkForResourceHints(node);
-    if (hasResourceHints) ++_numResourceHintsAbove;
-
-    node.traverse(*this);
-
-    if (hasResourceHints) --_numResourceHintsAbove;
-}
-
-void CollectDescriptorStats::apply(const StateGroup& stategroup)
-{
-    bool hasResourceHints = checkForResourceHints(stategroup);
-    if (hasResourceHints) ++_numResourceHintsAbove;
-
-    if (_numResourceHintsAbove == 0)
-    {
-        for (auto& command : stategroup.stateCommands)
-        {
-            command->accept(*this);
-        }
-    }
-
-    stategroup.traverse(*this);
-
-    if (hasResourceHints) --_numResourceHintsAbove;
-}
-
-void CollectDescriptorStats::apply(const PagedLOD& plod)
-{
-    bool hasResourceHints = checkForResourceHints(plod);
-    if (hasResourceHints) ++_numResourceHintsAbove;
-
-    containsPagedLOD = true;
-    plod.traverse(*this);
-
-    if (hasResourceHints) --_numResourceHintsAbove;
-}
-
-void CollectDescriptorStats::apply(const StateCommand& stateCommand)
-{
-    if (stateCommand.slot > maxSlot) maxSlot = stateCommand.slot;
-
-    stateCommand.traverse(*this);
-}
-
-void CollectDescriptorStats::apply(const DescriptorSet& descriptorSet)
-{
-    if (descriptorSets.count(&descriptorSet) == 0)
-    {
-        descriptorSets.insert(&descriptorSet);
-
-        descriptorSet.traverse(*this);
-    }
-}
-
-void CollectDescriptorStats::apply(const Descriptor& descriptor)
-{
-    if (descriptors.count(&descriptor) == 0)
-    {
-        descriptors.insert(&descriptor);
-    }
-    descriptorTypeMap[descriptor.descriptorType] += descriptor.getNumDescriptors();
-}
-
-void CollectDescriptorStats::apply(const View& view)
-{
-    if (auto itr = views.find(&view); itr != views.end())
-    {
-        binStack.push(itr->second);
-    }
-    else
-    {
-        binStack.push(BinDetails{static_cast<uint32_t>(views.size()), {}, {}});
-    }
-
-    view.traverse(*this);
-
-    for (auto& bin : view.bins)
-    {
-        binStack.top().bins.insert(bin);
-    }
-
-    views[&view] = binStack.top();
-
-    binStack.pop();
-}
-
-void CollectDescriptorStats::apply(const DepthSorted& depthSorted)
-{
-    binStack.top().indices.insert(depthSorted.binNumber);
-
-    depthSorted.traverse(*this);
-}
-
-void CollectDescriptorStats::apply(const Bin& bin)
-{
-    binStack.top().bins.insert(&bin);
-}
-
-uint32_t CollectDescriptorStats::computeNumDescriptorSets() const
-{
-    return externalNumDescriptorSets + static_cast<uint32_t>(descriptorSets.size());
-}
-
-DescriptorPoolSizes CollectDescriptorStats::computeDescriptorPoolSizes() const
-{
-    DescriptorPoolSizes poolSizes;
-    for (auto& [type, count] : descriptorTypeMap)
-    {
-        poolSizes.push_back(VkDescriptorPoolSize{type, count});
-    }
-    return poolSizes;
-}
-
-/////////////////////////////////////////////////////////////////////
-//
-// CompielTraversal
-//
-CompileTraversal::CompileTraversal(Device* in_device, BufferPreferences bufferPreferences) :
-    context(in_device, bufferPreferences)
-{
-    auto queueFamily = in_device->getPhysicalDevice()->getQueueFamily(VK_QUEUE_GRAPHICS_BIT);
-    context.commandPool = vsg::CommandPool::create(in_device, queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    context.graphicsQueue = in_device->getQueue(queueFamily);
-}
-
-CompileTraversal::CompileTraversal(Window* window, ViewportState* viewport, BufferPreferences bufferPreferences) :
-    context(window->getOrCreateDevice(), bufferPreferences)
-{
-    auto device = window->getDevice();
-    auto queueFamily = device->getPhysicalDevice()->getQueueFamily(VK_QUEUE_GRAPHICS_BIT);
-    context.renderPass = window->getOrCreateRenderPass();
-    context.commandPool = vsg::CommandPool::create(device, queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    context.graphicsQueue = device->getQueue(queueFamily);
-
-    if (viewport) context.defaultPipelineStates.emplace_back(viewport);
-    if (window->framebufferSamples() != VK_SAMPLE_COUNT_1_BIT) context.overridePipelineStates.emplace_back(vsg::MultisampleState::create(window->framebufferSamples()));
-}
-
 CompileTraversal::CompileTraversal(const CompileTraversal& ct) :
-    Inherit(ct),
-    context(ct.context)
+    Inherit(ct)
 {
+    for (auto& context : ct.contexts)
+    {
+        contexts.push_back(Context::create(*context));
+    }
+}
+
+CompileTraversal::CompileTraversal(ref_ptr<Device> device, const ResourceRequirements& resourceRequirements)
+{
+    add(device, resourceRequirements);
+}
+
+CompileTraversal::CompileTraversal(ref_ptr<Window> window, ref_ptr<ViewportState> viewport, const ResourceRequirements& resourceRequirements)
+{
+    add(window, viewport, resourceRequirements);
+}
+
+CompileTraversal::CompileTraversal(ref_ptr<Viewer> viewer, const ResourceRequirements& resourceRequirements)
+{
+    add(viewer, resourceRequirements);
 }
 
 CompileTraversal::~CompileTraversal()
 {
+}
+
+void CompileTraversal::add(ref_ptr<Device> device, const ResourceRequirements& resourceRequirements)
+{
+    auto queueFamily = device->getPhysicalDevice()->getQueueFamily(VK_QUEUE_GRAPHICS_BIT);
+    auto context = Context::create(device, resourceRequirements);
+    context->commandPool = CommandPool::create(device, queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    context->graphicsQueue = device->getQueue(queueFamily);
+    contexts.push_back(context);
+}
+
+void CompileTraversal::add(ref_ptr<Window> window, ref_ptr<ViewportState> viewport, const ResourceRequirements& resourceRequirements)
+{
+    auto device = window->getOrCreateDevice();
+    auto queueFamily = device->getPhysicalDevice()->getQueueFamily(VK_QUEUE_GRAPHICS_BIT);
+    auto context = Context::create(device, resourceRequirements);
+    context->renderPass = window->getOrCreateRenderPass();
+    context->commandPool = CommandPool::create(device, queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    context->graphicsQueue = device->getQueue(queueFamily);
+
+    if (viewport) context->defaultPipelineStates.emplace_back(viewport);
+    if (window->framebufferSamples() != VK_SAMPLE_COUNT_1_BIT) context->overridePipelineStates.emplace_back(MultisampleState::create(window->framebufferSamples()));
+
+    contexts.push_back(context);
+}
+
+void CompileTraversal::add(ref_ptr<Window> window, ref_ptr<View> view, const ResourceRequirements& resourceRequirements)
+{
+    auto device = window->getOrCreateDevice();
+    auto queueFamily = device->getPhysicalDevice()->getQueueFamily(VK_QUEUE_GRAPHICS_BIT);
+    auto context = Context::create(device, resourceRequirements);
+    context->renderPass = window->getOrCreateRenderPass();
+    context->commandPool = vsg::CommandPool::create(device, queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    context->graphicsQueue = device->getQueue(queueFamily);
+
+    if (window->framebufferSamples() != VK_SAMPLE_COUNT_1_BIT) context->overridePipelineStates.emplace_back(vsg::MultisampleState::create(window->framebufferSamples()));
+
+    auto viewportState = view->camera->viewportState;
+    if (viewportState) context->defaultPipelineStates.emplace_back(viewportState);
+
+    context->viewID = view->viewID;
+    context->viewDependentState = view->viewDependentState;
+
+    contexts.push_back(context);
+}
+
+void CompileTraversal::add(ref_ptr<Viewer> viewer, const ResourceRequirements& resourceRequirements)
+{
+    struct AddViews : public Visitor
+    {
+        CompileTraversal* ct = nullptr;
+        const ResourceRequirements& resourceRequirements;
+        AddViews(CompileTraversal* in_ct, const ResourceRequirements& in_rr) :
+            ct(in_ct), resourceRequirements(in_rr){};
+
+        std::stack<ref_ptr<Window>> windowStack;
+
+        void apply(Object& object) override
+        {
+            object.traverse(*this);
+        }
+
+        void apply(RenderGraph& rg) override
+        {
+            windowStack.emplace(rg.window);
+
+            rg.traverse(*this);
+
+            windowStack.pop();
+        }
+
+        void apply(View& view) override
+        {
+            if (!windowStack.empty())
+            {
+                ct->add(windowStack.top(), ref_ptr<View>(&view), resourceRequirements);
+            }
+        }
+    } addViews(this, resourceRequirements);
+
+    for (auto& task : viewer->recordAndSubmitTasks)
+    {
+        for (auto& cg : task->commandGraphs)
+        {
+            cg->accept(addViews);
+        }
+    }
 }
 
 void CompileTraversal::apply(Object& object)
@@ -234,23 +157,35 @@ void CompileTraversal::apply(Object& object)
 
 void CompileTraversal::apply(Command& command)
 {
-    command.compile(context);
+    for (auto& context : contexts)
+    {
+        command.compile(*context);
+    }
 }
 
 void CompileTraversal::apply(Commands& commands)
 {
-    commands.compile(context);
+    for (auto& context : contexts)
+    {
+        commands.compile(*context);
+    }
 }
 
 void CompileTraversal::apply(StateGroup& stateGroup)
 {
-    stateGroup.compile(context);
+    for (auto& context : contexts)
+    {
+        stateGroup.compile(*context);
+    }
     stateGroup.traverse(*this);
 }
 
 void CompileTraversal::apply(Geometry& geometry)
 {
-    geometry.compile(context);
+    for (auto& context : contexts)
+    {
+        geometry.compile(*context);
+    }
     geometry.traverse(*this);
 }
 
@@ -258,25 +193,28 @@ void CompileTraversal::apply(CommandGraph& commandGraph)
 {
     if (commandGraph.window)
     {
-        context.renderPass = commandGraph.window->getOrCreateRenderPass();
-
-        context.defaultPipelineStates.push_back(vsg::ViewportState::create(commandGraph.window->extent2D()));
-
-        if (commandGraph.window->framebufferSamples() != VK_SAMPLE_COUNT_1_BIT)
+        for (auto& context : contexts)
         {
-            ref_ptr<MultisampleState> defaultMsState = MultisampleState::create(commandGraph.window->framebufferSamples());
-            context.overridePipelineStates.push_back(defaultMsState);
+            context->renderPass = commandGraph.window->getOrCreateRenderPass();
+
+            context->defaultPipelineStates.push_back(ViewportState::create(commandGraph.window->extent2D()));
+
+            if (commandGraph.window->framebufferSamples() != VK_SAMPLE_COUNT_1_BIT)
+            {
+                ref_ptr<MultisampleState> defaultMsState = MultisampleState::create(commandGraph.window->framebufferSamples());
+                context->overridePipelineStates.push_back(defaultMsState);
+            }
+
+            // save previous states to be restored after traversal
+            auto previousDefaultPipelineStates = context->defaultPipelineStates;
+            auto previousOverridePipelineStates = context->overridePipelineStates;
+
+            commandGraph.traverse(*this);
+
+            // restore previous values
+            context->defaultPipelineStates = previousDefaultPipelineStates;
+            context->overridePipelineStates = previousOverridePipelineStates;
         }
-
-        // save previous states to be restored after traversal
-        auto previousDefaultPipelineStates = context.defaultPipelineStates;
-        auto previousOverridePipelineStates = context.overridePipelineStates;
-
-        commandGraph.traverse(*this);
-
-        // restore previous values
-        context.defaultPipelineStates = previousDefaultPipelineStates;
-        context.overridePipelineStates = previousOverridePipelineStates;
     }
     else
     {
@@ -286,49 +224,75 @@ void CompileTraversal::apply(CommandGraph& commandGraph)
 
 void CompileTraversal::apply(RenderGraph& renderGraph)
 {
-    context.renderPass = renderGraph.getRenderPass();
-
-    // save previous states to be restored after traversal
-    auto previousDefaultPipelineStates = context.defaultPipelineStates;
-    auto previousOverridePipelineStates = context.overridePipelineStates;
-
-    if (renderGraph.window)
+    for (auto& context : contexts)
     {
-        context.defaultPipelineStates.push_back(vsg::ViewportState::create(renderGraph.window->extent2D()));
-    }
-    else if (renderGraph.framebuffer)
-    {
-        VkExtent2D extent{renderGraph.framebuffer->width(), renderGraph.framebuffer->height()};
-        context.defaultPipelineStates.push_back(vsg::ViewportState::create(extent));
-    }
+        context->renderPass = renderGraph.getRenderPass();
 
-    if (context.renderPass && context.renderPass->maxSamples() != VK_SAMPLE_COUNT_1_BIT)
-    {
-        ref_ptr<MultisampleState> defaultMsState = MultisampleState::create(context.renderPass->maxSamples());
-        context.overridePipelineStates.push_back(defaultMsState);
+        // save previous states to be restored after traversal
+        auto previousDefaultPipelineStates = context->defaultPipelineStates;
+        auto previousOverridePipelineStates = context->overridePipelineStates;
+
+        if (renderGraph.window)
+        {
+            context->defaultPipelineStates.push_back(ViewportState::create(renderGraph.window->extent2D()));
+        }
+        else if (renderGraph.framebuffer)
+        {
+            VkExtent2D extent{renderGraph.framebuffer->width(), renderGraph.framebuffer->height()};
+            context->defaultPipelineStates.push_back(ViewportState::create(extent));
+        }
+
+        if (context->renderPass && context->renderPass->maxSamples != VK_SAMPLE_COUNT_1_BIT)
+        {
+            ref_ptr<MultisampleState> defaultMsState = MultisampleState::create(context->renderPass->maxSamples);
+            context->overridePipelineStates.push_back(defaultMsState);
+        }
+
+        renderGraph.traverse(*this);
+
+        // restore previous values
+        context->defaultPipelineStates = previousDefaultPipelineStates;
+        context->overridePipelineStates = previousOverridePipelineStates;
     }
-
-    renderGraph.traverse(*this);
-
-    // restore previous values
-    context.defaultPipelineStates = previousDefaultPipelineStates;
-    context.overridePipelineStates = previousOverridePipelineStates;
 }
 
 void CompileTraversal::apply(View& view)
 {
-    context.viewID = view.viewID;
-
-    if (view.camera && view.camera->viewportState)
+    for (auto& context : contexts)
     {
-        context.defaultPipelineStates.emplace_back(view.camera->viewportState);
+        context->viewID = view.viewID;
+        context->viewDependentState = view.viewDependentState.get();
+        if (view.viewDependentState) view.viewDependentState->compile(*context);
 
-        view.traverse(*this);
+        if (view.camera && view.camera->viewportState)
+        {
+            context->defaultPipelineStates.emplace_back(view.camera->viewportState);
 
-        context.defaultPipelineStates.pop_back();
+            view.traverse(*this);
+
+            context->defaultPipelineStates.pop_back();
+        }
+        else
+        {
+            view.traverse(*this);
+        }
     }
-    else
+}
+
+bool CompileTraversal::record()
+{
+    bool recorded = false;
+    for (auto& context : contexts)
     {
-        view.traverse(*this);
+        if (context->record()) recorded = true;
+    }
+    return recorded;
+}
+
+void CompileTraversal::waitForCompletion()
+{
+    for (auto& context : contexts)
+    {
+        context->waitForCompletion();
     }
 }

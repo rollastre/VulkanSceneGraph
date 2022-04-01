@@ -14,6 +14,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include <vsg/commands/PushConstants.h>
 #include <vsg/maths/plane.h>
+#include <vsg/nodes/MatrixTransform.h>
 #include <vsg/state/ComputePipeline.h>
 #include <vsg/state/DescriptorSet.h>
 #include <vsg/state/GraphicsPipeline.h>
@@ -26,7 +27,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 namespace vsg
 {
 
-#define USE_DOUBLE_MATRIX_STACK 1
 #define POLYTOPE_SIZE 5
 
     template<class T>
@@ -83,18 +83,9 @@ namespace vsg
             dirty = true;
         }
 
-#if USE_DOUBLE_MATRIX_STACK
         using value_type = double;
-        using alternative_type = float;
-#else
-        using value_type = float;
-        using alternative_type = double;
-#endif
 
-        using Matrix = t_mat4<value_type>;
-        using AlternativeMatrix = t_mat4<alternative_type>;
-
-        std::stack<Matrix> matrixStack;
+        std::stack<dmat4> matrixStack;
         uint32_t offset = 0;
         bool dirty = false;
 
@@ -122,32 +113,19 @@ namespace vsg
             matrixStack.emplace(matrix);
             dirty = true;
         }
-
-        inline void pushAndPostMult(const Matrix& matrix)
+        inline void push(const Transform& transform)
         {
-            matrixStack.emplace(matrixStack.top() * matrix);
+            matrixStack.emplace(transform.transform(matrixStack.top()));
             dirty = true;
         }
 
-        inline void pushAndPostMult(const AlternativeMatrix& matrix)
+        inline void push(const MatrixTransform& transform)
         {
-            matrixStack.emplace(matrixStack.top() * Matrix(matrix));
+            matrixStack.emplace(matrixStack.top() * transform.matrix);
             dirty = true;
         }
 
-        inline void pushAndPreMult(const Matrix& matrix)
-        {
-            matrixStack.emplace(matrix * matrixStack.top());
-            dirty = true;
-        }
-
-        inline void pushAndPreMult(const AlternativeMatrix& matrix)
-        {
-            matrixStack.emplace(Matrix(matrix) * matrixStack.top());
-            dirty = true;
-        }
-
-        const Matrix& top() const { return matrixStack.top(); }
+        const dmat4& top() const { return matrixStack.top(); }
 
         inline void pop()
         {
@@ -168,14 +146,9 @@ namespace vsg
                     return;
                 }
 
-#if USE_DOUBLE_MATRIX_STACK
                 // make sure matrix is a float matrix.
                 mat4 newmatrix(matrixStack.top());
                 vkCmdPushConstants(commandBuffer, pipeline, stageFlags, offset, sizeof(newmatrix), newmatrix.data());
-#else
-
-                vkCmdPushConstants(commandBuffer, pipeline, stageFlags, offset, sizeof(Matrix), matrixStack.top().data());
-#endif
                 dirty = false;
             }
         }
@@ -191,10 +164,10 @@ namespace vsg
         {
             face[0].set(1.0, 0.0, 0.0, 1.0);                                    // left plane
             face[1].set(-1.0, 0.0, 0.0, 1.0);                                   // right plane
-            face[2].set(0.0, 1.0, 0.0, 1.0);                                    // bottom plane
-            face[3].set(0.0, -1.0, 0.0, 1.0);                                   // top plane
-            if constexpr (POLYTOPE_SIZE >= 5) face[4].set(0.0, 0.0, -1.0, 1.0); // far plane
-            if constexpr (POLYTOPE_SIZE >= 6) face[5].set(0.0, 0.0, 1.0, 1.0);  // near plane
+            face[2].set(0.0, -1.0, 0.0, 1.0);                                   // bottom plane
+            face[3].set(0.0, 1.0, 0.0, 1.0);                                    // top plane
+            if constexpr (POLYTOPE_SIZE >= 5) face[4].set(0.0, 0.0, 1.0, 0.0);  // far plane
+            if constexpr (POLYTOPE_SIZE >= 6) face[5].set(0.0, 0.0, -1.0, 1.0); // near plane
         }
 
         template<class M>

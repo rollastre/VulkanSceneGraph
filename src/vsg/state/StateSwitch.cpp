@@ -1,6 +1,6 @@
 /* <editor-fold desc="MIT License">
 
-Copyright(c) 2018 Robert Osfield
+Copyright(c) 2021 Robert Osfield
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -10,72 +10,72 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 </editor-fold> */
 
-#include <vsg/nodes/MaskGroup.h>
-
-#include <vsg/io/Input.h>
 #include <vsg/io/Options.h>
-#include <vsg/io/Output.h>
+#include <vsg/state/StateSwitch.h>
+#include <vsg/vk/CommandBuffer.h>
 
 using namespace vsg;
 
-MaskGroup::MaskGroup(Allocator* allocator) :
-    Inherit(allocator)
+void StateSwitch::compile(Context& context)
 {
+    for (auto& child : children) child.stateCommand->compile(context);
 }
 
-MaskGroup::~MaskGroup()
+void StateSwitch::record(CommandBuffer& commandBuffer) const
 {
-}
-
-void MaskGroup::read(Input& input)
-{
-    Node::read(input);
-
-    if (input.version_greater_equal(0, 1, 4))
+    for (auto& child : children)
     {
-        children.resize(input.readValue<uint32_t>("children"));
+        if ((commandBuffer.traversalMask & (commandBuffer.overrideMask | child.mask)) != MASK_OFF)
+        {
+            child.stateCommand->record(commandBuffer);
+        }
+    }
+}
+
+void StateSwitch::read(Input& input)
+{
+    StateCommand::read(input);
+
+    children.resize(input.readValue<uint32_t>("children"));
+    if (input.version_greater_equal(0, 2, 5))
+    {
         for (auto& child : children)
         {
             input.read("child.mask", child.mask);
-            input.read("child.node", child.node);
+            input.read("child.stateCommand", child.stateCommand);
         }
     }
     else
     {
-        children.resize(input.readValue<uint32_t>("NumChildren"));
         for (auto& child : children)
         {
-            input.read("mask", child.mask);
-            input.read("node", child.node);
+            uint32_t mask = 0x0;
+            input.read("child.mask", mask);
+            input.read("child.stateCommand", child.stateCommand);
+            child.mask = static_cast<Mask>(mask);
         }
     }
 }
 
-void MaskGroup::write(Output& output) const
+void StateSwitch::write(Output& output) const
 {
-    Node::write(output);
+    StateCommand::write(output);
 
-    if (output.version_greater_equal(0, 1, 4))
+    output.writeValue<uint32_t>("children", children.size());
+    if (output.version_greater_equal(0, 2, 5))
     {
-        output.writeValue<uint32_t>("children", children.size());
         for (auto& child : children)
         {
             output.write("child.mask", child.mask);
-            output.write("child.node", child.node);
+            output.write("child.stateCommand", child.stateCommand);
         }
     }
     else
     {
-        output.writeValue<uint32_t>("NumChildren", children.size());
         for (auto& child : children)
         {
-            output.write("mask", child.mask);
-            output.write("node", child.node);
+            output.writeValue<uint32_t>("child.mask", child.mask);
+            output.write("child.stateCommand", child.stateCommand);
         }
     }
-}
-
-void MaskGroup::addChild(uint32_t mask, ref_ptr<Node> child)
-{
-    children.push_back(Child{mask, child});
 }

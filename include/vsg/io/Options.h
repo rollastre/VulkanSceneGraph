@@ -22,6 +22,7 @@ namespace vsg
 
     //class FileCache;
     class ObjectCache;
+    class SharedObjects;
     class ReaderWriter;
     class OperationThreads;
     class CommandLine;
@@ -51,6 +52,7 @@ namespace vsg
         void add(ref_ptr<ReaderWriter> rw = {});
         void add(const ReaderWriters& rws);
 
+        ref_ptr<SharedObjects> sharedObjects;
         ref_ptr<ObjectCache> objectCache;
         ReaderWriters readerWriters;
         ref_ptr<OperationThreads> operationThreads;
@@ -84,5 +86,8 @@ namespace vsg
         virtual ~Options();
     };
     VSG_type_name(vsg::Options);
+
+    /// convenience function that if a filename has a path, it duplicates the supplied Options object and prepends the path to the new Options::paths, otherwise returns the original Options object.
+    extern VSG_DECLSPEC ref_ptr<const vsg::Options> prependPathToOptionsIfRequired(const vsg::Path& filename, ref_ptr<const vsg::Options> options);
 
 } // namespace vsg

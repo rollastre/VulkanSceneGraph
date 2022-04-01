@@ -10,7 +10,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 </editor-fold> */
 
+#include <vsg/core/compare.h>
 #include <vsg/io/Options.h>
+#include <vsg/io/read.h>
 #include <vsg/state/ShaderStage.h>
 #include <vsg/traversals/CompileTraversal.h>
 
@@ -27,9 +29,9 @@ ShaderStage::ShaderStage(VkShaderStageFlagBits in_stage, const std::string& in_e
 {
 }
 
-ShaderStage::ShaderStage(VkShaderStageFlagBits in_stage, const std::string& in_entryPointName, const std::string& source) :
+ShaderStage::ShaderStage(VkShaderStageFlagBits in_stage, const std::string& in_entryPointName, const std::string& source, ref_ptr<ShaderCompileSettings> hints) :
     stage(in_stage),
-    module(ShaderModule::create(source)),
+    module(ShaderModule::create(source, hints)),
     entryPointName(in_entryPointName)
 {
 }
@@ -52,9 +54,64 @@ ShaderStage::~ShaderStage()
 {
 }
 
-ref_ptr<ShaderStage> ShaderStage::read(VkShaderStageFlagBits in_stage, const std::string& in_entryPointName, const std::string& filename)
+int ShaderStage::compare(const Object& rhs_object) const
 {
-    return ShaderStage::create(in_stage, in_entryPointName, ShaderModule::read(filename));
+    int result = Object::compare(rhs_object);
+    if (result != 0) return result;
+
+    auto& rhs = static_cast<decltype(*this)>(rhs_object);
+
+    if ((result = compare_value(flags, rhs.flags))) return result;
+    if ((result = compare_value(stage, rhs.stage))) return result;
+    if ((result = compare_pointer(module, rhs.module))) return result;
+    if ((result = compare_value(entryPointName, rhs.entryPointName))) return result;
+
+    if (specializationConstants.size() < rhs.specializationConstants.size()) return -1;
+    if (specializationConstants.size() > rhs.specializationConstants.size()) return 1;
+    if (specializationConstants.empty()) return 0;
+
+    auto rhs_itr = rhs.specializationConstants.begin();
+    for (auto lhs_itr = specializationConstants.begin(); lhs_itr != specializationConstants.end(); ++lhs_itr, ++rhs_itr)
+    {
+        if ((result = compare_value(lhs_itr->first, rhs_itr->first))) return result;
+        if ((result = compare_pointer(lhs_itr->second, rhs_itr->second))) return result;
+    }
+
+    return 0;
+}
+
+ref_ptr<ShaderStage> ShaderStage::read(VkShaderStageFlagBits stage, const std::string& entryPointName, const std::string& filename, ref_ptr<const Options> options)
+{
+    auto object = vsg::read(filename, options);
+    if (!object) return {};
+
+    auto st = object.cast<vsg::ShaderStage>();
+    if (!st)
+    {
+        auto sm = object.cast<vsg::ShaderModule>();
+        return ShaderStage::create_if(sm.valid(), stage, entryPointName, sm);
+    }
+
+    st->stage = stage;
+    st->entryPointName = entryPointName;
+    return st;
+}
+
+ref_ptr<ShaderStage> ShaderStage::read(VkShaderStageFlagBits stage, const std::string& entryPointName, std::istream& fin, ref_ptr<const Options> options)
+{
+    auto object = vsg::read(fin, options);
+    if (!object) return {};
+
+    auto st = object.cast<vsg::ShaderStage>();
+    if (!st)
+    {
+        auto sm = object.cast<vsg::ShaderModule>();
+        return ShaderStage::create_if(sm.valid(), stage, entryPointName, sm);
+    }
+
+    st->stage = stage;
+    st->entryPointName = entryPointName;
+    return st;
 }
 
 void ShaderStage::read(Input& input)

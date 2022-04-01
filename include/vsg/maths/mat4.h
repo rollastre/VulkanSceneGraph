@@ -57,8 +57,16 @@ namespace vsg
                   {v[8], v[9], v[10], v[11]},
                   {v[12], v[13], v[14], v[15]}} {}
 
+        constexpr t_mat4(const column_type& c0,
+                         const column_type& c1,
+                         const column_type& c2,
+                         const column_type& c3) :
+            value{c0, c1, c2, c3}
+        {
+        }
+
         template<typename R>
-        t_mat4(const t_mat4<R>& rhs)
+        explicit t_mat4(const t_mat4<R>& rhs)
         {
             value[0] = rhs[0];
             value[1] = rhs[1];
@@ -126,6 +134,18 @@ namespace vsg
     }
 
     template<typename T>
+    bool operator<(const t_mat4<T>& lhs, const t_mat4<T>& rhs)
+    {
+        if (lhs.value[0] < rhs.value[0]) return true;
+        if (rhs.value[0] < lhs.value[0]) return false;
+        if (lhs.value[1] < rhs.value[1]) return true;
+        if (rhs.value[1] < lhs.value[1]) return false;
+        if (lhs.value[2] < rhs.value[2]) return true;
+        if (rhs.value[2] < lhs.value[2]) return false;
+        return lhs.value[3] < rhs.value[3];
+    }
+
+    template<typename T>
     T dot(const t_mat4<T>& lhs, const t_mat4<T>& rhs, int c, int r)
     {
         return lhs[0][r] * rhs[c][0] +
@@ -152,6 +172,9 @@ namespace vsg
                          lhs[0][3] * rhs[0] + lhs[1][3] * rhs[1] + lhs[2][3] * rhs[2] + lhs[3][3] * rhs[3]);
     }
 
+    /* Right multiplication of a matrix and a plane. This can't be used directly to transform a
+       plane from one coordinate system to another using the coordinate system's matrix; the inverse
+       transpose of the matrix should be used. */
     template<typename T, typename R>
     t_plane<R> operator*(const t_mat4<T>& lhs, const t_plane<R>& rhs)
     {
@@ -163,6 +186,8 @@ namespace vsg
         return t_plane<T>(transformed[0] * inv, transformed[1] * inv, transformed[2] * inv, transformed[3] * inv);
     }
 
+    /* Left multiplication of a row vector. Equivalent to multiplying the column vector by the
+       matrix transpose. */
     template<typename T>
     t_vec4<T> operator*(const t_vec4<T>& lhs, const t_mat4<T>& rhs)
     {
@@ -172,6 +197,8 @@ namespace vsg
                          lhs[0] * rhs[3][0] + lhs[1] * rhs[3][1] + lhs[2] * rhs[3][2] + lhs[3] * rhs[3][3]);
     }
 
+    /* Left multiplication of a plane and a matrix. This can be used directly to transform a plane
+       from a coordinate system's local coordinates to world coordinates. */
     template<typename T, typename R>
     t_plane<T> operator*(const t_plane<T>& lhs, const t_mat4<R>& rhs)
     {

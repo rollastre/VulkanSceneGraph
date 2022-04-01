@@ -11,9 +11,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 </editor-fold> */
 
 #include <vsg/core/Exception.h>
+#include <vsg/core/compare.h>
 #include <vsg/io/Options.h>
 #include <vsg/state/DescriptorSet.h>
 #include <vsg/traversals/CompileTraversal.h>
+#include <vsg/viewer/View.h>
 #include <vsg/vk/CommandBuffer.h>
 
 using namespace vsg;
@@ -34,6 +36,17 @@ DescriptorSet::~DescriptorSet()
 {
 }
 
+int DescriptorSet::compare(const Object& rhs_object) const
+{
+    int result = Object::compare(rhs_object);
+    if (result != 0) return result;
+
+    auto& rhs = static_cast<decltype(*this)>(rhs_object);
+
+    if ((result = compare_pointer(setLayout, rhs.setLayout))) return result;
+    return compare_pointer_container(descriptors, rhs.descriptors);
+}
+
 void DescriptorSet::read(Input& input)
 {
     Object::read(input);
@@ -41,7 +54,7 @@ void DescriptorSet::read(Input& input)
     if (input.version_greater_equal(0, 1, 4))
     {
         input.read("setLayout", setLayout);
-        input.read("descriptors", descriptors);
+        input.readObjects("descriptors", descriptors);
     }
     else
     {
@@ -62,7 +75,7 @@ void DescriptorSet::write(Output& output) const
     if (output.version_greater_equal(0, 1, 4))
     {
         output.write("setLayout", setLayout);
-        output.write("descriptors", descriptors);
+        output.writeObjects("descriptors", descriptors);
     }
     else
     {
@@ -154,6 +167,19 @@ BindDescriptorSets::BindDescriptorSets() :
 {
 }
 
+int BindDescriptorSets::compare(const Object& rhs_object) const
+{
+    int result = StateCommand::compare(rhs_object);
+    if (result != 0) return result;
+
+    auto& rhs = static_cast<decltype(*this)>(rhs_object);
+
+    if ((result = compare_value(pipelineBindPoint, rhs.pipelineBindPoint))) return result;
+    if ((result = compare_pointer(layout, rhs.layout))) return result;
+    if ((result = compare_value(firstSet, rhs.firstSet))) return result;
+    return compare_pointer_container(descriptorSets, rhs.descriptorSets);
+}
+
 void BindDescriptorSets::read(Input& input)
 {
     _vulkanData.clear();
@@ -164,7 +190,7 @@ void BindDescriptorSets::read(Input& input)
     {
         input.read("layout", layout);
         input.read("firstSet", firstSet);
-        input.read("descriptorSets", descriptorSets);
+        input.readObjects("descriptorSets", descriptorSets);
     }
     else
     {
@@ -188,7 +214,7 @@ void BindDescriptorSets::write(Output& output) const
     {
         output.write("layout", layout);
         output.write("firstSet", firstSet);
-        output.write("descriptorSets", descriptorSets);
+        output.writeObjects("descriptorSets", descriptorSets);
     }
     else
     {
@@ -235,6 +261,19 @@ BindDescriptorSet::BindDescriptorSet() :
     pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS),
     firstSet(0)
 {
+}
+
+int BindDescriptorSet::compare(const Object& rhs_object) const
+{
+    int result = StateCommand::compare(rhs_object);
+    if (result != 0) return result;
+
+    auto& rhs = static_cast<decltype(*this)>(rhs_object);
+
+    if ((result = compare_value(pipelineBindPoint, rhs.pipelineBindPoint))) return result;
+    if ((result = compare_pointer(layout, rhs.layout))) return result;
+    if ((result = compare_value(firstSet, rhs.firstSet))) return result;
+    return compare_pointer(descriptorSet, rhs.descriptorSet);
 }
 
 void BindDescriptorSet::read(Input& input)

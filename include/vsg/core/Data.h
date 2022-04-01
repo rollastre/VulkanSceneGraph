@@ -12,15 +12,27 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 </editor-fold> */
 
+#include <vsg/core/Allocator.h>
 #include <vsg/core/Object.h>
 #include <vsg/core/type_name.h>
 
 #include <vulkan/vulkan.h>
 
+#include <cstring>
 #include <vector>
 
 namespace vsg
 {
+
+    struct ModifiedCount
+    {
+        uint32_t count = 0;
+
+        bool operator==(const ModifiedCount& rhs) const { return count == rhs.count; }
+        bool operator!=(const ModifiedCount& rhs) const { return count != rhs.count; }
+
+        void operator++() { ++count; }
+    };
 
     /** 64 bit block of compressed texel data.*/
     using block64 = uint8_t[8];
@@ -68,6 +80,10 @@ namespace vsg
 
         bool operator==(stride_iterator rhs) const { return ptr == rhs.ptr; }
         bool operator!=(stride_iterator rhs) const { return ptr != rhs.ptr; }
+        bool operator<(stride_iterator rhs) const { return ptr < rhs.ptr; }
+        bool operator<=(stride_iterator rhs) const { return ptr <= rhs.ptr; }
+        bool operator>(stride_iterator rhs) const { return ptr > rhs.ptr; }
+        bool operator>=(stride_iterator rhs) const { return ptr >= rhs.ptr; }
 
         value_type& operator*() { return *reinterpret_cast<value_type*>(ptr); }
         value_type* operator->() { return reinterpret_cast<value_type*>(ptr); }
@@ -89,6 +105,7 @@ namespace vsg
             uint8_t blockDepth = 1;
             uint8_t origin = TOP_LEFT; /// Hint for setting up texture coordinates, bit 0 x/width axis, bit 1 y/height axis, bit 2 z/depth axis. Vulkan origin for images is top left, which is denoted as 0 here.
             int8_t imageViewType = -1; /// -1 signifies undefined VkImageViewType, if value >=0 then value should be treated as valid VkImageViewType
+            AllocatorType allocatorType = ALLOCATOR_TYPE_VSG_ALLOCATOR;
         };
 
         Data() {}
@@ -102,17 +119,36 @@ namespace vsg
             if (_layout.stride < min_stride) _layout.stride = min_stride;
         }
 
+        /// provide new and delete to enable custom memory management via the vsg::Allocator singleton, using the MEMORY_AFFINTY_DATA
+        static void* operator new(std::size_t count);
+        static void operator delete(void* ptr);
+
         std::size_t sizeofObject() const noexcept override { return sizeof(Data); }
         bool is_compatible(const std::type_info& type) const noexcept override { return typeid(Data) == type ? true : Object::is_compatible(type); }
 
+        int compare(const Object& rhs_object) const override
+        {
+            int result = Object::compare(rhs_object);
+            if (result != 0) return result;
+
+            auto& rhs = static_cast<decltype(*this)>(rhs_object);
+
+            result = std::memcmp(&_layout, &rhs._layout, sizeof(Layout));
+            if (result != 0) return result;
+
+            // the shorter data is less
+            if (dataSize() < rhs.dataSize()) return -1;
+            if (dataSize() > rhs.dataSize()) return 1;
+
+            // if both empty then they must be equal
+            if (dataSize() == 0) return 0;
+
+            // use memcpy to compare the contents of the data
+            return std::memcmp(dataPointer(), rhs.dataPointer(), dataSize());
+        }
+
         void read(Input& input) override;
         void write(Output& output) const override;
-
-        /// Deprecated. TODO : need to remove
-        void setFormat(VkFormat format) { _layout.format = format; }
-
-        /// Deprecated. TODO : : need to remove
-        VkFormat getFormat() const { return _layout.format; }
 
         /** Set Layout */
         void setLayout(Layout layout)
@@ -157,10 +193,29 @@ namespace vsg
         MipmapOffsets computeMipmapOffsets() const;
         static std::size_t computeValueCountIncludingMipmaps(std::size_t w, std::size_t h, std::size_t d, uint32_t maxNumMipmaps);
 
+        /// increment the ModifiedCount to signify the data has been modified
+        void dirty() { ++_modifiedCount; }
+
+        /// get the Data's ModifiedCount and return true if this changes the specified ModifiedCount
+        bool getModifiedCount(ModifiedCount& mc) const
+        {
+            if (_modifiedCount != mc)
+            {
+                mc = _modifiedCount;
+                return true;
+            }
+            else
+                return false;
+        }
+
+        /// return true if Data's ModifiedCount is different than the specified ModifiedCount
+        bool differentModifiedCount(const ModifiedCount& mc) const { return _modifiedCount != mc; }
+
     protected:
         virtual ~Data() {}
 
         Layout _layout;
+        ModifiedCount _modifiedCount;
     };
     VSG_type_name(vsg::Data);
 

@@ -42,25 +42,41 @@ namespace vsg
             _width(0),
             _height(0) {}
 
+        Array2D(const Array2D& rhs) :
+            Data(rhs._layout, sizeof(value_type)),
+            _data(nullptr),
+            _width(rhs._width),
+            _height(rhs._height)
+        {
+            if (_width != 0 && _height != 0)
+            {
+                _data = _allocate(_width * _height);
+                auto dest_v = _data;
+                for (auto& v : rhs) *(dest_v++) = v;
+            }
+            dirty();
+        }
+
         Array2D(uint32_t width, uint32_t height, Layout layout = {}) :
             Data(layout, sizeof(value_type)),
-            _data(new value_type[width * height]),
+            _data(_allocate(width * height)),
             _width(width),
-            _height(height) {}
+            _height(height) { dirty(); }
 
         Array2D(uint32_t width, uint32_t height, value_type* data, Layout layout = {}) :
             Data(layout, sizeof(value_type)),
             _data(data),
             _width(width),
-            _height(height) {}
+            _height(height) { dirty(); }
 
         Array2D(uint32_t width, uint32_t height, const value_type& value, Layout layout = {}) :
             Data(layout, sizeof(value_type)),
-            _data(new value_type[width * height]),
+            _data(_allocate(width * height)),
             _width(width),
             _height(height)
         {
             for (auto& v : *this) v = value;
+            dirty();
         }
 
         Array2D(ref_ptr<Data> data, uint32_t offset, uint32_t stride, uint32_t width, uint32_t height, Layout layout = Layout()) :
@@ -93,43 +109,45 @@ namespace vsg
 
             Data::read(input);
 
-            uint32_t width = input.readValue<uint32_t>("Width");
-            uint32_t height = input.readValue<uint32_t>("Height");
+            uint32_t w = input.readValue<uint32_t>("Width");
+            uint32_t h = input.readValue<uint32_t>("Height");
 
             if (input.version_greater_equal(0, 0, 1))
             {
-                auto storage = input.readObject<Data>("Storage");
-                if (storage)
+                auto data_storage = input.readObject<Data>("Storage");
+                if (data_storage)
                 {
                     uint32_t offset = input.readValue<uint32_t>("Offset");
-                    assign(storage, offset, _layout.stride, width, height, _layout);
+                    assign(data_storage, offset, _layout.stride, w, h, _layout);
                     return;
                 }
             }
 
             if (input.matchPropertyName("Data"))
             {
-                std::size_t new_size = computeValueCountIncludingMipmaps(width, height, 1, _layout.maxNumMipmaps);
+                std::size_t new_size = computeValueCountIncludingMipmaps(w, h, 1, _layout.maxNumMipmaps);
 
                 if (_data) // if data already may be able to reuse it
                 {
                     if (original_size != new_size) // if existing data is a different size delete old, and create new
                     {
                         _delete();
-                        _data = new value_type[new_size];
+                        _data = _allocate(new_size);
                     }
                 }
                 else // allocate space for data
                 {
-                    _data = new value_type[new_size];
+                    _data = _allocate(new_size);
                 }
 
                 _layout.stride = sizeof(value_type);
-                _width = width;
-                _height = height;
+                _width = w;
+                _height = h;
                 _storage = nullptr;
 
                 input.read(new_size, _data);
+
+                dirty();
             }
         }
 
@@ -170,6 +188,28 @@ namespace vsg
             _storage = nullptr;
         }
 
+        Array2D& operator=(const Array2D& rhs)
+        {
+            if (&rhs == this) return *this;
+
+            clear();
+
+            _layout = rhs._layout;
+            _width = rhs._width;
+            _height = rhs._height;
+
+            if (_width != 0 && _height != 0)
+            {
+                _data = _allocate(_width * _height);
+                auto dest_v = _data;
+                for (auto& v : rhs) *(dest_v++) = v;
+            }
+
+            dirty();
+
+            return *this;
+        }
+
         void assign(uint32_t width, uint32_t height, value_type* data, Layout layout = Layout())
         {
             _delete();
@@ -180,6 +220,8 @@ namespace vsg
             _height = height;
             _data = data;
             _storage = nullptr;
+
+            dirty();
         }
 
         void assign(ref_ptr<Data> storage, uint32_t offset, uint32_t stride, uint32_t width, uint32_t height, Layout layout = Layout())
@@ -201,6 +243,8 @@ namespace vsg
                 _width = 0;
                 _height = 0;
             }
+
+            dirty();
         }
 
         // release the data so that ownership can be passed on, the local data pointer and size is set to 0 and destruction of Array will no result in the data being deleted.
@@ -256,7 +300,7 @@ namespace vsg
         value_type& at(uint32_t i, uint32_t j) { return *data(index(i, j)); }
         const value_type& at(uint32_t i, uint32_t j) const { return *data(index(i, j)); }
 
-        void set(std::size_t i, const value_type& v) { data(i) = v; }
+        void set(std::size_t i, const value_type& v) { *data(i) = v; }
         void set(uint32_t i, uint32_t j, const value_type& v) { *data(index(i, j)) = v; }
 
         Data* storage() { return _storage; }
@@ -274,9 +318,27 @@ namespace vsg
             _delete();
         }
 
+        value_type* _allocate(size_t size) const
+        {
+            if (_layout.allocatorType == ALLOCATOR_TYPE_NEW_DELETE)
+                return new value_type[size];
+            else if (_layout.allocatorType == ALLOCATOR_TYPE_MALLOC_FREE)
+                return new (std::malloc(sizeof(value_type) * size)) value_type[size];
+            else
+                return new (vsg::allocate(sizeof(value_type) * size, ALLOCATOR_AFFINITY_DATA)) value_type[size];
+        }
+
         void _delete()
         {
-            if (!_storage && _data) delete[] _data;
+            if (!_storage && _data)
+            {
+                if (_layout.allocatorType == ALLOCATOR_TYPE_NEW_DELETE)
+                    delete[] _data;
+                else if (_layout.allocatorType == ALLOCATOR_TYPE_MALLOC_FREE)
+                    std::free(_data);
+                else if (_layout.allocatorType != 0)
+                    vsg::deallocate(_data);
+            }
         }
 
     private:

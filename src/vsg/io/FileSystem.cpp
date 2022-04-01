@@ -19,11 +19,27 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #    include <io.h>
 //	 cctype is needed for tolower()
 #    include <cctype>
+#    include <windows.h>
+
+#    ifdef _MSC_VER
+#        ifndef PATH_MAX
+#            define PATH_MAX MAX_PATH
+#        endif
+#    endif
+
 #else
 #    include <errno.h>
 #    include <sys/stat.h>
 #    include <unistd.h>
 #endif
+
+#ifdef __APPLE__
+#    include <TargetConditionals.h>
+#    include <libgen.h>
+#    include <mach-o/dyld.h>
+#endif
+
+#include <limits.h>
 
 #include <iostream>
 
@@ -111,16 +127,26 @@ Path vsg::filePath(const Path& path)
     }
     else
     {
-        return Path();
+        return {};
     }
 }
 
 Path vsg::fileExtension(const Path& path)
 {
+    // available in cpp20
+    auto endsWith = [](std::string_view str, std::string_view suffix) {
+        return str.size() >= suffix.size() && 0 == str.compare(str.size() - suffix.size(), suffix.size(), suffix);
+    };
+
+    // handle dot and dotdot in the path - since end-users can mix delimiter types we have to handle both cases
+    if (endsWith(path, "\\.") || endsWith(path, "/.")) return {};
+    if (endsWith(path, "\\..") || endsWith(path, "/..")) return {};
+
     std::string::size_type dot = path.find_last_of('.');
     std::string::size_type slash = path.find_last_of(PATH_SEPARATORS);
-    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) return Path();
-    return path.substr(dot + 1);
+    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) return {};
+    if (dot != std::string::npos && path.length() == 1) return {};
+    return path.substr(dot);
 }
 
 Path vsg::lowerCaseFileExtension(const Path& path)
@@ -199,27 +225,28 @@ Path vsg::findFile(const Path& filename, const Paths& paths)
 
 Path vsg::findFile(const Path& filename, const Options* options)
 {
-    if (options && !options->paths.empty())
+    if (options)
     {
         // if Options has a findFileCallback use it
         if (options->findFileCallback) return options->findFileCallback(filename, options);
 
-        // if appropriate use the filename directly if it exists.
-        if (options->checkFilenameHint == Options::CHECK_ORIGINAL_FILENAME_EXISTS_FIRST && fileExists(filename)) return filename;
+        if (!options->paths.empty())
+        {
+            // if appropriate use the filename directly if it exists.
+            if (options->checkFilenameHint == Options::CHECK_ORIGINAL_FILENAME_EXISTS_FIRST && fileExists(filename)) return filename;
 
-        // search for the file if the in the specific paths.
-        if (auto path = findFile(filename, options->paths); !path.empty()) return path;
+            // search for the file if the in the specific paths.
+            if (auto path = findFile(filename, options->paths); !path.empty()) return path;
 
-        // if appropriate use the filename directly if it exists.
-        if (options->checkFilenameHint == Options::CHECK_ORIGINAL_FILENAME_EXISTS_LAST && fileExists(filename))
-            return filename;
-        else
-            return {};
+            // if appropriate use the filename directly if it exists.
+            if (options->checkFilenameHint == Options::CHECK_ORIGINAL_FILENAME_EXISTS_LAST && fileExists(filename))
+                return filename;
+            else
+                return {};
+        }
     }
-    else
-    {
-        return fileExists(filename) ? filename : Path();
-    }
+
+    return fileExists(filename) ? filename : Path();
 }
 
 bool vsg::makeDirectory(const Path& path)
@@ -266,4 +293,50 @@ bool vsg::makeDirectory(const Path& path)
     }
 
     return true;
+}
+
+Path vsg::executableFilePath()
+{
+    Path path;
+    char buf[PATH_MAX + 1];
+
+#if defined(WIN32)
+    DWORD result = GetModuleFileName(NULL, buf, sizeof(buf) - 1);
+    if (result && result < sizeof(buf))
+        path = buf;
+#elif defined(__linux__)
+    // TODO need to handle case where executable filename is longer than PATH_MAX
+    // See https://stackoverflow.com/questions/5525668/how-to-implement-readlink-to-find-the-path
+    ssize_t len = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (len != -1)
+    {
+        buf[len] = '\0';
+        path = buf;
+    }
+#elif defined(__APPLE__)
+#    if TARGET_OS_MAC
+    char realPathName[PATH_MAX + 1];
+    uint32_t size = (uint32_t)sizeof(buf);
+
+    if (!_NSGetExecutablePath(buf, &size))
+    {
+        realpath(buf, realPathName);
+        path = realPathName;
+    }
+#    elif TARGET_IPHONE_SIMULATOR
+    // iOS, tvOS, or watchOS Simulator
+    // Not currently implemented
+#    elif TARGET_OS_MACCATALYST
+    // Mac's Catalyst (ports iOS API into Mac, like UIKit).
+    // Not currently implemented
+#    elif TARGET_OS_IPHONE
+    // iOS, tvOS, or watchOS device
+    // Not currently implemented
+#    else
+#        error "Unknown Apple platform"
+#    endif
+#elif defined(__ANDROID__)
+    // Not currently implemented
+#endif
+    return path;
 }

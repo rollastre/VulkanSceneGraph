@@ -12,11 +12,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 </editor-fold> */
 
-#include <vsg/nodes/Node.h>
-
 #include <vsg/io/FileSystem.h>
 #include <vsg/io/Options.h>
-
+#include <vsg/nodes/Node.h>
 #include <vsg/vk/Semaphore.h>
 
 #include <array>
@@ -37,7 +35,7 @@ namespace vsg
     class VSG_DECLSPEC PagedLOD : public Inherit<Node, PagedLOD>
     {
     public:
-        PagedLOD(Allocator* allocator = nullptr);
+        PagedLOD();
 
         template<class N, class V>
         static void t_traverse(N& node, V& visitor)
@@ -106,7 +104,6 @@ namespace vsg
         mutable uint32_t index = 0;
 
         ref_ptr<Node> pending;
-        ref_ptr<Semaphore> semaphore;
     };
     VSG_type_name(vsg::PagedLOD);
 
@@ -146,7 +143,7 @@ namespace vsg
         void _move(const PagedLOD* plod, List* targetList);
 
         bool check();
-        bool check(List& list);
+        bool check(const List& list);
 
         void print(std::ostream& out);
     };

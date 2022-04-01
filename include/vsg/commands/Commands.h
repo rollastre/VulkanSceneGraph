@@ -25,8 +25,7 @@ namespace vsg
     class VSG_DECLSPEC Commands : public Inherit<Command, Commands>
     {
     public:
-        Commands(size_t numChildren = 0);
-        Commands(Allocator* allocator, size_t numChildren = 0);
+        explicit Commands(size_t numChildren = 0);
 
         template<class N, class V>
         static void t_traverse(N& node, V& visitor)

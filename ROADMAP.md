@@ -20,7 +20,7 @@ Prototype Phase Materials:
 * [Prototype Phase Workplan](docs/PrototypePhase/Workplan.md)
 * [Prototype Phase Report](docs/PrototypePhase/PrototypePhaseReport.md)
 
-### 3. Core Development Phase, January-Spring 2021 (near completion)
+### 3. Core Development Phase, 2021-early 2022 (near completion)
 **Goal: Create the final class interfaces and implementation**
 
 Using the prototyping work as a guide implement the final scene graph library with the aim of creating a solid interface and implementation.
@@ -38,15 +38,31 @@ Using the prototyping work as a guide implement the final scene graph library wi
     * Support for Text rendering.
 * Development of test suite of programs and data.
 * Support for RTX Mesh shaders and ray tracing.
+* Scene graph level multi-bin support with bin sorting.
+* Support for Khronos ray tracing.
 
 #### Pending/Underway tasks:
-* Scene graph level multi-bin support with bin sorting.
 * Positional state support to enable easier support of lighting, shadows, texture projection.
-* Support for Khronos ray tracing.
+* Unified state composer, shader set and cache
+* Memory allocator with support with grouping associated types
+* Improved support for dynamic scene graphs and dynamic views, dynamic descriptor pool reallocation
+* Matrix decomposition
+* Support for wide and standard strings in vsg::Path.
 * Support for integration with OpenGL/OSG applications via [EXT\_external\_object](https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_external_objects.txt) & [VK\_KHR\_external\_memory](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VK_KHR_external_memory.html#versions-1.1-promotions)
 * Port to iOS
+* Utilize vkEnumerateInstanceVersion
 
-### 4. Release Phase,  Summer/Fall 2021
+#### Pending/Underway tasks relating to associated libraries
+* Update vsgXchange::OSG and vsgXchange::Assimp to use the new state composer/shader set.
+* Update vsgImGui to latest
+* Rewrite vsgQt handling of keyboard mapping
+
+#### Pending/Underway tasks relating to associated libraries
+* Update vsgXchange::OSG and vsgXchange::Assimp to use the new state composer/shader set.
+* Update vsgImGui to latest
+* Rewrite vsgQt handling of keyboard mapping
+
+### 4. Release Phase,  Spring 2022
 **Goal: Test scene graph library against real-world applications and shake down the API and implementation for it's first stable release.**
 
 * Refinement of API and implementation

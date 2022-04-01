@@ -22,14 +22,14 @@ namespace vsg
     public:
         DescriptorBuffer();
 
-        DescriptorBuffer(ref_ptr<Data> data, uint32_t dstBinding = 0, uint32_t dstArrayElement = 0, VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-
-        DescriptorBuffer(const DataList& dataList, uint32_t dstBinding = 0, uint32_t dstArrayElement = 0, VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-
-        DescriptorBuffer(const BufferInfoList& in_bufferInfoList, uint32_t dstBinding, uint32_t dstArrayElement, VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        explicit DescriptorBuffer(ref_ptr<Data> data, uint32_t dstBinding = 0, uint32_t dstArrayElement = 0, VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        explicit DescriptorBuffer(const DataList& dataList, uint32_t dstBinding = 0, uint32_t dstArrayElement = 0, VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        explicit DescriptorBuffer(const BufferInfoList& in_bufferInfoList, uint32_t dstBinding, uint32_t dstArrayElement, VkDescriptorType descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 
         /// VkWriteDescriptorSet.pBufferInfo settings
         BufferInfoList bufferInfoList;
+
+        int compare(const Object& rhs_object) const override;
 
         void read(Input& input) override;
         void write(Output& output) const override;

@@ -38,6 +38,8 @@ RenderGraph::RenderGraph(ref_ptr<Window> in_window, ref_ptr<View> in_view) :
         addChild(in_view);
     }
 
+    previous_extent = window->extent2D();
+
     if (in_view && in_view->camera && in_view->camera->viewportState)
     {
         renderArea = in_view->camera->getRenderArea();
@@ -48,19 +50,8 @@ RenderGraph::RenderGraph(ref_ptr<Window> in_window, ref_ptr<View> in_view) :
         renderArea.extent = window->extent2D();
     }
 
-    if (window->framebufferSamples() != VK_SAMPLE_COUNT_1_BIT)
-    {
-        clearValues.resize(3);
-        clearValues[0].color = window->clearColor();
-        clearValues[1].color = window->clearColor();
-        clearValues[2].depthStencil = VkClearDepthStencilValue{1.0f, 0};
-    }
-    else
-    {
-        clearValues.resize(2);
-        clearValues[0].color = window->clearColor();
-        clearValues[1].depthStencil = VkClearDepthStencilValue{1.0f, 0};
-    }
+    // set up the clearValues based on the RenderPass's attachments.
+    setClearValues(window->clearColor(), VkClearDepthStencilValue{0.0f, 0});
 }
 
 RenderPass* RenderGraph::getRenderPass()
@@ -69,27 +60,54 @@ RenderPass* RenderGraph::getRenderPass()
     {
         return framebuffer->getRenderPass();
     }
-    else
+    else if (window)
     {
         return window->getOrCreateRenderPass();
     }
+    return nullptr;
+}
+
+void RenderGraph::setClearValues(VkClearColorValue clearColor, VkClearDepthStencilValue clearDepthStencil)
+{
+    auto renderPass = getRenderPass();
+    if (!renderPass) return;
+
+    auto& attachments = renderPass->attachments;
+    clearValues.resize(attachments.size());
+    for (size_t i = 0; i < attachments.size(); ++i)
+    {
+        if (attachments[i].finalLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+        {
+            clearValues[i].depthStencil = clearDepthStencil;
+        }
+        else
+        {
+            clearValues[i].color = clearColor;
+        }
+    }
+}
+
+VkExtent2D RenderGraph::getExtent() const
+{
+    if (framebuffer)
+        return VkExtent2D{framebuffer->width(), framebuffer->height()};
+    else if (window)
+        return window->extent2D();
+    else
+        return VkExtent2D{invalid_dimension, invalid_dimension};
 }
 
 void RenderGraph::accept(RecordTraversal& recordTraversal) const
 {
-    if (window)
+    auto extent = getExtent();
+    if (previous_extent.width == invalid_dimension || previous_extent.height == invalid_dimension || !windowResizeHandler)
     {
-        auto extent = window->extent2D();
-
-        if (previous_extent.width == invalid_dimension || previous_extent.width == invalid_dimension || !windowResizeHandler)
-        {
-            previous_extent = extent;
-        }
-        else if (previous_extent.width != extent.width || previous_extent.height != extent.height)
-        {
-            auto this_renderGraph = const_cast<RenderGraph*>(this);
-            this_renderGraph->resized();
-        }
+        previous_extent = extent;
+    }
+    else if (previous_extent.width != extent.width || previous_extent.height != extent.height)
+    {
+        auto this_renderGraph = const_cast<RenderGraph*>(this);
+        this_renderGraph->resized();
     }
 
     VkRenderPassBeginInfo renderPassInfo = {};
@@ -131,22 +149,31 @@ void RenderGraph::accept(RecordTraversal& recordTraversal) const
 void RenderGraph::resized()
 {
     if (!windowResizeHandler) return;
+    if (!window && !framebuffer) return;
 
-    if (!windowResizeHandler->context) windowResizeHandler->context = vsg::Context::create(window->getDevice());
+    auto renderPass = getRenderPass();
+    if (!renderPass) return;
 
-    auto extent = window->extent2D();
+    auto device = renderPass->device;
+
+    if (!windowResizeHandler->context) windowResizeHandler->context = vsg::Context::create(device);
+
+    auto extent = getExtent();
 
     windowResizeHandler->context->commandPool = nullptr;
-    windowResizeHandler->context->renderPass = window->getRenderPass();
+    windowResizeHandler->context->renderPass = renderPass;
     windowResizeHandler->renderArea = renderArea;
     windowResizeHandler->previous_extent = previous_extent;
     windowResizeHandler->new_extent = extent;
     windowResizeHandler->visited.clear();
 
-    if (window->framebufferSamples() != VK_SAMPLE_COUNT_1_BIT) windowResizeHandler->context->overridePipelineStates.emplace_back(vsg::MultisampleState::create(window->framebufferSamples()));
+    if (renderPass->maxSamples != VK_SAMPLE_COUNT_1_BIT)
+    {
+        windowResizeHandler->context->overridePipelineStates.emplace_back(vsg::MultisampleState::create(renderPass->maxSamples));
+    }
 
     // make sure the device is idle before we recreate any Vulkan objects
-    vkDeviceWaitIdle(*(window->getDevice()));
+    vkDeviceWaitIdle(*(device));
 
     traverse(*windowResizeHandler);
 
@@ -155,11 +182,15 @@ void RenderGraph::resized()
     previous_extent = extent;
 }
 
-ref_ptr<RenderGraph> vsg::createRenderGraphForView(ref_ptr<Window> window, ref_ptr<Camera> camera, ref_ptr<Node> scenegraph, VkSubpassContents contents)
+ref_ptr<RenderGraph> vsg::createRenderGraphForView(ref_ptr<Window> window, ref_ptr<Camera> camera, ref_ptr<Node> scenegraph, VkSubpassContents contents, bool assignHeadlight)
 {
-    // set up the render graph for viewport & scene
-    auto renderGraph = vsg::RenderGraph::create(window, View::create(camera, scenegraph));
+    // set up the view
+    auto view = View::create(camera);
+    if (assignHeadlight) view->addChild(createHeadlight());
+    if (scenegraph) view->addChild(scenegraph);
 
+    // set up the render graph
+    auto renderGraph = RenderGraph::create(window, view);
     renderGraph->contents = contents;
 
     return renderGraph;

@@ -10,6 +10,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 </editor-fold> */
 
+#include <vsg/core/compare.h>
 #include <vsg/io/Options.h>
 #include <vsg/state/DescriptorBuffer.h>
 #include <vsg/traversals/CompileTraversal.h>
@@ -33,7 +34,7 @@ DescriptorBuffer::DescriptorBuffer(ref_ptr<Data> data, uint32_t in_dstBinding, u
 {
     if (data)
     {
-        bufferInfoList.emplace_back(nullptr, 0, 0, data);
+        bufferInfoList.emplace_back(BufferInfo::create(data));
     }
 }
 
@@ -43,7 +44,7 @@ DescriptorBuffer::DescriptorBuffer(const DataList& dataList, uint32_t in_dstBind
     bufferInfoList.reserve(dataList.size());
     for (auto& data : dataList)
     {
-        bufferInfoList.emplace_back(nullptr, 0, 0, data);
+        bufferInfoList.emplace_back(BufferInfo::create(data));
     }
 }
 
@@ -55,28 +56,30 @@ DescriptorBuffer::DescriptorBuffer(const BufferInfoList& in_bufferInfoList, uint
 
 DescriptorBuffer::~DescriptorBuffer()
 {
-    for (auto& bufferInfo : bufferInfoList)
-    {
-        bufferInfo.release();
-    }
+}
+
+int DescriptorBuffer::compare(const Object& rhs_object) const
+{
+    int result = Descriptor::compare(rhs_object);
+    if (result != 0) return result;
+
+    auto& rhs = static_cast<decltype(*this)>(rhs_object);
+
+    return compare_pointer_container(bufferInfoList, rhs.bufferInfoList);
 }
 
 void DescriptorBuffer::read(Input& input)
 {
-    for (auto& bufferInfo : bufferInfoList)
-    {
-        bufferInfo.release();
-    }
-
     Descriptor::read(input);
 
     bufferInfoList.resize(input.readValue<uint32_t>("NumData"));
     for (auto& bufferInfo : bufferInfoList)
     {
-        bufferInfo.buffer = nullptr;
-        bufferInfo.offset = 0;
-        bufferInfo.range = 0;
-        input.readObject("Data", bufferInfo.data);
+        bufferInfo = vsg::BufferInfo::create();
+        bufferInfo->buffer = nullptr;
+        bufferInfo->offset = 0;
+        bufferInfo->range = 0;
+        input.readObject("Data", bufferInfo->data);
     }
 }
 
@@ -87,7 +90,7 @@ void DescriptorBuffer::write(Output& output) const
     output.writeValue<uint32_t>("NumData", bufferInfoList.size());
     for (auto& bufferInfo : bufferInfoList)
     {
-        output.writeObject("Data", bufferInfo.data.get());
+        output.writeObject("Data", bufferInfo->data.get());
     }
 }
 
@@ -98,8 +101,10 @@ void DescriptorBuffer::compile(Context& context)
     bool requiresAssingmentOfBuffers = false;
     for (auto& bufferInfo : bufferInfoList)
     {
-        if (bufferInfo.buffer == nullptr) requiresAssingmentOfBuffers = true;
+        if (bufferInfo->buffer == nullptr) requiresAssingmentOfBuffers = true;
     }
+
+    auto deviceID = context.deviceID;
 
     if (requiresAssingmentOfBuffers)
     {
@@ -107,49 +112,70 @@ void DescriptorBuffer::compile(Context& context)
         if (bufferUsageFlags == VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT) alignment = context.device->getPhysicalDevice()->getProperties().limits.minUniformBufferOffsetAlignment;
 
         VkDeviceSize totalSize = 0;
-        VkDeviceSize offset = 0;
 
-        for (auto& bufferInfo : bufferInfoList)
+        // compute the total size of BufferInfo that needs to be allocated.
         {
-            if (bufferInfo.data)
+            VkDeviceSize offset = 0;
+            for (auto& bufferInfo : bufferInfoList)
             {
-                bufferInfo.offset = offset;
-                bufferInfo.range = bufferInfo.data->dataSize();
-
-                totalSize = offset + bufferInfo.range;
-                offset = (alignment == 1 || (totalSize % alignment) == 0) ? totalSize : ((totalSize / alignment) + 1) * alignment;
+                if (bufferInfo->data && !bufferInfo->buffer)
+                {
+                    totalSize = offset + bufferInfo->data->dataSize();
+                    offset = (alignment == 1 || (totalSize % alignment) == 0) ? totalSize : ((totalSize / alignment) + 1) * alignment;
+                }
             }
         }
 
-        auto buffer = vsg::Buffer::create(totalSize, bufferUsageFlags, VK_SHARING_MODE_EXCLUSIVE);
-
-        for (auto& bufferInfo : bufferInfoList)
+        // if required allocate the buffer and reserve slots in it for the BufferInfo
+        if (totalSize > 0)
         {
-            if (!bufferInfo.buffer) bufferInfo.buffer = buffer;
+            auto buffer = vsg::Buffer::create(totalSize, bufferUsageFlags, VK_SHARING_MODE_EXCLUSIVE);
+            for (auto& bufferInfo : bufferInfoList)
+            {
+                if (bufferInfo->data && !bufferInfo->buffer)
+                {
+                    auto [allocated, offset] = buffer->reserve(bufferInfo->data->dataSize(), alignment);
+                    if (allocated)
+                    {
+                        bufferInfo->buffer = buffer;
+                        bufferInfo->offset = offset;
+                        bufferInfo->range = bufferInfo->data->dataSize();
+                    }
+                    else
+                    {
+                        std::cout << "Warning: DescriptorBuffer::compile(..) unable to allocate bufferInfo with within associated Buffer." << std::endl;
+                    }
+                }
+            }
         }
     }
 
-    bool needToCopyDataToBuffer = false;
     for (auto& bufferInfo : bufferInfoList)
     {
-        if (bufferInfo.buffer->compile(context.device))
+        if (bufferInfo->buffer)
         {
-            if (bufferInfo.buffer->getDeviceMemory(context.deviceID) == nullptr)
+            if (bufferInfo->buffer->compile(context.device))
             {
-                auto memRequirements = bufferInfo.buffer->getMemoryRequirements(context.deviceID);
-                auto memory = vsg::DeviceMemory::create(context.device, memRequirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-                bufferInfo.buffer->bind(memory, 0);
+                if (bufferInfo->buffer->getDeviceMemory(deviceID) == nullptr)
+                {
+                    auto memRequirements = bufferInfo->buffer->getMemoryRequirements(deviceID);
+                    auto memory = vsg::DeviceMemory::create(context.device, memRequirements, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+                    auto [alloacted, offset] = memory->reserve(bufferInfo->buffer->size);
+                    if (alloacted)
+                    {
+                        bufferInfo->buffer->bind(memory, offset);
+                    }
+                    else
+                    {
+                        std::cout << "Warning: DescriptorBuffer::compile(..) unable to allocate buffer within associated DeviceMemory." << std::endl;
+                    }
+                }
             }
 
-            needToCopyDataToBuffer = true;
-        }
-    }
-
-    if (needToCopyDataToBuffer)
-    {
-        for (auto& bufferInfo : bufferInfoList)
-        {
-            bufferInfo.copyDataToBuffer(context.deviceID);
+            if (bufferInfo->data && bufferInfo->data->getModifiedCount(bufferInfo->copiedModifiedCounts[deviceID]))
+            {
+                bufferInfo->copyDataToBuffer(context.deviceID);
+            }
         }
     }
 }
@@ -167,9 +193,9 @@ void DescriptorBuffer::assignTo(Context& context, VkWriteDescriptorSet& wds) con
     {
         auto& data = bufferInfoList[i];
         VkDescriptorBufferInfo& info = pBufferInfo[i];
-        info.buffer = data.buffer->vk(context.deviceID);
-        info.offset = data.offset;
-        info.range = data.range;
+        info.buffer = data->buffer->vk(context.deviceID);
+        info.offset = data->offset;
+        info.range = data->range;
     }
 }
 
@@ -182,6 +208,6 @@ void DescriptorBuffer::copyDataListToBuffers()
 {
     for (auto& bufferInfo : bufferInfoList)
     {
-        bufferInfo.copyDataToBuffer();
+        bufferInfo->copyDataToBuffer();
     }
 }

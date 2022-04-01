@@ -34,6 +34,8 @@ namespace vsg
         /// Vulkan VkImage handle
         VkBufferView vk(uint32_t deviceID) const { return _vulkanData[deviceID].bufferView; }
 
+        int compare(const Object& rhs_object) const override;
+
         virtual void compile(Device* device);
         virtual void compile(Context& context);
 
@@ -51,6 +53,7 @@ namespace vsg
 
         vk_buffer<VulkanData> _vulkanData;
     };
+    VSG_type_name(vsg::BufferView);
 
     using BufferViewList = std::vector<ref_ptr<BufferView>>;
 

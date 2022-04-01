@@ -15,6 +15,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/core/Array.h>
 #include <vsg/core/Array2D.h>
 #include <vsg/core/Array3D.h>
+#include <vsg/core/Mask.h>
 #include <vsg/core/Value.h>
 
 namespace vsg
@@ -34,16 +35,23 @@ namespace vsg
     class CullGroup;
     class CullNode;
     class MatrixTransform;
+    class Transform;
     class Geometry;
     class VertexIndexDraw;
     class DepthSorted;
     class Bin;
     class Switch;
-    class MaskGroup;
+    class Light;
+    class AmbientLight;
+    class DirectionalLight;
+    class PointLight;
+    class SpotLight;
 
     // forward declare vulkan classes
+    class BufferInfo;
     class Command;
     class StateCommand;
+    class StateSwitch;
     class CommandBuffer;
     class RenderPass;
     class BindDescriptorSet;
@@ -102,6 +110,9 @@ namespace vsg
     class TerminateEvent;
     class FrameEvent;
 
+    // forward declare util classes
+    class AnimationPath;
+
     // forward declare viewer classes
     class Camera;
     class CommandGraph;
@@ -117,8 +128,8 @@ namespace vsg
     public:
         ConstVisitor();
 
-        uint32_t traversalMask = 0xffffffff;
-        uint32_t overrideMask = 0x0;
+        Mask traversalMask = MASK_ALL;
+        Mask overrideMask = MASK_OFF;
 
         virtual void apply(const Object&);
         virtual void apply(const Objects&);
@@ -233,16 +244,23 @@ namespace vsg
         virtual void apply(const CullGroup&);
         virtual void apply(const CullNode&);
         virtual void apply(const MatrixTransform&);
+        virtual void apply(const Transform&);
         virtual void apply(const Geometry&);
         virtual void apply(const VertexIndexDraw&);
         virtual void apply(const DepthSorted&);
         virtual void apply(const Bin&);
         virtual void apply(const Switch&);
-        virtual void apply(const MaskGroup&);
+        virtual void apply(const Light&);
+        virtual void apply(const AmbientLight&);
+        virtual void apply(const DirectionalLight&);
+        virtual void apply(const PointLight&);
+        virtual void apply(const SpotLight&);
 
         // Vulkan nodes
+        virtual void apply(const BufferInfo&);
         virtual void apply(const Command&);
         virtual void apply(const StateCommand&);
+        virtual void apply(const StateSwitch&);
         virtual void apply(const CommandBuffer&);
         virtual void apply(const RenderPass&);
         virtual void apply(const BindDescriptorSet&);
@@ -300,6 +318,9 @@ namespace vsg
         virtual void apply(const ScrollWheelEvent&);
         virtual void apply(const TerminateEvent&);
         virtual void apply(const FrameEvent&);
+
+        // utils
+        virtual void apply(const AnimationPath&);
 
         // viewer
         virtual void apply(const Camera&);

@@ -21,6 +21,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/nodes/DepthSorted.h>
 #include <vsg/nodes/Group.h>
 #include <vsg/nodes/LOD.h>
+#include <vsg/nodes/Light.h>
 #include <vsg/nodes/MatrixTransform.h>
 #include <vsg/nodes/PagedLOD.h>
 #include <vsg/nodes/QuadGroup.h>
@@ -280,11 +281,40 @@ void RecordTraversal::apply(const Switch& sw)
 {
     for (auto& child : sw.children)
     {
-        if (child.enabled)
+        if ((traversalMask & (overrideMask | child.mask)) != MASK_OFF)
         {
             child.node->accept(*this);
         }
     }
+}
+
+void RecordTraversal::apply(const Light& light)
+{
+    std::cout << "RecordTraversal::apply(Light) " << light.className() << std::endl;
+}
+
+void RecordTraversal::apply(const AmbientLight& light)
+{
+    //std::cout<<"RecordTraversal::apply(AmbientLight) "<<light.className()<<std::endl;
+    if (_viewDependentState) _viewDependentState->ambientLights.emplace_back(_state->modelviewMatrixStack.top(), &light);
+}
+
+void RecordTraversal::apply(const DirectionalLight& light)
+{
+    //std::cout<<"RecordTraversal::apply(DirectionalLight) "<<light.className()<<std::endl;
+    if (_viewDependentState) _viewDependentState->directionalLights.emplace_back(_state->modelviewMatrixStack.top(), &light);
+}
+
+void RecordTraversal::apply(const PointLight& light)
+{
+    //std::cout<<"RecordTraversal::apply(PointLight) "<<light.className()<<std::endl;
+    if (_viewDependentState) _viewDependentState->pointLights.emplace_back(_state->modelviewMatrixStack.top(), &light);
+}
+
+void RecordTraversal::apply(const SpotLight& light)
+{
+    //std::cout<<"RecordTraversal::apply(SpotLight) "<<light.className()<<std::endl;
+    if (_viewDependentState) _viewDependentState->spotLights.emplace_back(_state->modelviewMatrixStack.top(), &light);
 }
 
 void RecordTraversal::apply(const StateGroup& stateGroup)
@@ -306,30 +336,44 @@ void RecordTraversal::apply(const StateGroup& stateGroup)
     _state->dirty = true;
 }
 
-void RecordTraversal::apply(const MatrixTransform& mt)
+void RecordTraversal::apply(const Transform& transform)
 {
-    if (mt.subgraphRequiresLocalFrustum)
+    _state->modelviewMatrixStack.push(transform);
+    _state->dirty = true;
+
+    if (transform.subgraphRequiresLocalFrustum)
     {
-        _state->modelviewMatrixStack.pushAndPostMult(mt.matrix);
         _state->pushFrustum();
-        _state->dirty = true;
-
-        mt.traverse(*this);
-
-        _state->modelviewMatrixStack.pop();
+        transform.traverse(*this);
         _state->popFrustum();
-        _state->dirty = true;
     }
     else
     {
-        _state->modelviewMatrixStack.pushAndPostMult(mt.matrix);
-        _state->dirty = true;
-
-        mt.traverse(*this);
-
-        _state->modelviewMatrixStack.pop();
-        _state->dirty = true;
+        transform.traverse(*this);
     }
+
+    _state->modelviewMatrixStack.pop();
+    _state->dirty = true;
+}
+
+void RecordTraversal::apply(const MatrixTransform& mt)
+{
+    _state->modelviewMatrixStack.push(mt);
+    _state->dirty = true;
+
+    if (mt.subgraphRequiresLocalFrustum)
+    {
+        _state->pushFrustum();
+        mt.traverse(*this);
+        _state->popFrustum();
+    }
+    else
+    {
+        mt.traverse(*this);
+    }
+
+    _state->modelviewMatrixStack.pop();
+    _state->dirty = true;
 }
 
 // Vulkan nodes
@@ -351,12 +395,17 @@ void RecordTraversal::apply(const Command& command)
 
 void RecordTraversal::apply(const View& view)
 {
+    // note, View::accept() updates the RecordTraversal's traversalMask
+    auto cached_traversalMask = _state->_commandBuffer->traversalMask;
+    _state->_commandBuffer->traversalMask = traversalMask;
     _state->_commandBuffer->viewID = view.viewID;
+    _state->_commandBuffer->viewDependentState = view.viewDependentState.get();
 
     // cache the previous bins
-    int32_t cache_minimumBinNumber = _minimumBinNumber;
-    decltype(_bins) cache_bins;
-    cache_bins.swap(_bins);
+    int32_t cached_minimumBinNumber = _minimumBinNumber;
+    decltype(_bins) cached_bins;
+    cached_bins.swap(_bins);
+    auto cached_viewDependentState = _viewDependentState;
 
     // assign and clear the View's bins
     int32_t min_binNumber = 0;
@@ -375,14 +424,17 @@ void RecordTraversal::apply(const View& view)
         bin->clear();
     }
 
+    // assign and clear the View's ViewDependentState
+    _viewDependentState = view.viewDependentState;
+    if (_viewDependentState)
+    {
+        _viewDependentState->clear();
+    }
+
     if (view.camera)
     {
-        dmat4 projMatrix, viewMatrix;
-        view.camera->projectionMatrix->get(projMatrix);
-        view.camera->viewMatrix->get(viewMatrix);
-
         // TODO push/pop project and view matrices
-        setProjectionAndViewMatrix(projMatrix, viewMatrix);
+        setProjectionAndViewMatrix(view.camera->projectionMatrix->transform(), view.camera->viewMatrix->transform());
 
         view.traverse(*this);
     }
@@ -396,7 +448,15 @@ void RecordTraversal::apply(const View& view)
         bin->accept(*this);
     }
 
+    if (_viewDependentState)
+    {
+        _viewDependentState->pack();
+        _viewDependentState->copy();
+    }
+
     // swap back previous bin setup.
-    _minimumBinNumber = cache_minimumBinNumber;
-    cache_bins.swap(_bins);
+    _minimumBinNumber = cached_minimumBinNumber;
+    cached_bins.swap(_bins);
+    _state->_commandBuffer->traversalMask = cached_traversalMask;
+    _viewDependentState = cached_viewDependentState;
 }

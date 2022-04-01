@@ -10,6 +10,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 </editor-fold> */
 
+#include <vsg/core/compare.h>
 #include <vsg/io/Options.h>
 #include <vsg/state/DynamicState.h>
 #include <vsg/vk/Context.h>
@@ -22,6 +23,15 @@ DynamicState::DynamicState()
 
 DynamicState::~DynamicState()
 {
+}
+
+int DynamicState::compare(const Object& rhs_object) const
+{
+    int result = Object::compare(rhs_object);
+    if (result != 0) return result;
+
+    auto& rhs = static_cast<decltype(*this)>(rhs_object);
+    return compare_value_container(dynamicStates, rhs.dynamicStates);
 }
 
 void DynamicState::read(Input& input)
@@ -50,9 +60,11 @@ void DynamicState::apply(Context& context, VkGraphicsPipelineCreateInfo& pipelin
 {
     auto dynamicState = context.scratchMemory->allocate<VkPipelineDynamicStateCreateInfo>();
 
-    dynamicState->sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    dynamicState->sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamicState->pNext = nullptr;
     dynamicState->flags = 0;
+    dynamicState->dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState->pDynamicStates = dynamicStates.data();
 
     pipelineInfo.pDynamicState = dynamicState;
 }

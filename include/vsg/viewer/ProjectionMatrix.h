@@ -22,26 +22,20 @@ namespace vsg
     class VSG_DECLSPEC ProjectionMatrix : public Inherit<Object, ProjectionMatrix>
     {
     public:
-        virtual void get(mat4& matrix) const = 0;
-        virtual void get(dmat4& matrix) const = 0;
+        virtual dmat4 transform() const = 0;
 
-        virtual void get_inverse(mat4& matrix) const
+        virtual dmat4 inverse() const
         {
-            get(matrix);
-            matrix = inverse(matrix);
+            return vsg::inverse(transform());
         }
-        virtual void get_inverse(dmat4& matrix) const
-        {
-            get(matrix);
-            matrix = inverse(matrix);
-        }
+
         virtual void changeExtent(const VkExtent2D& /*prevExtent*/, const VkExtent2D& /*newExtent*/)
         {
         }
     };
     VSG_type_name(vsg::ProjectionMatrix);
 
-    class Perspective : public Inherit<ProjectionMatrix, Perspective>
+    class VSG_DECLSPEC Perspective : public Inherit<ProjectionMatrix, Perspective>
     {
     public:
         Perspective() :
@@ -60,12 +54,16 @@ namespace vsg
         {
         }
 
-        void get(mat4& matrix) const override { matrix = perspective(radians(fieldOfViewY), aspectRatio, nearDistance, farDistance); }
-        void get(dmat4& matrix) const override { matrix = perspective(radians(fieldOfViewY), aspectRatio, nearDistance, farDistance); }
+        dmat4 transform() const override { return perspective(radians(fieldOfViewY), aspectRatio, nearDistance, farDistance); }
+
         void changeExtent(const VkExtent2D&, const VkExtent2D& newExtent) override
         {
             aspectRatio = static_cast<double>(newExtent.width) / static_cast<double>(newExtent.height);
         }
+
+        void read(Input& input) override;
+        void write(Output& output) const override;
+
         double fieldOfViewY;
         double aspectRatio;
         double nearDistance;
@@ -96,8 +94,8 @@ namespace vsg
         {
         }
 
-        void get(mat4& matrix) const override { matrix = orthographic(left, right, bottom, top, nearDistance, farDistance); }
-        void get(dmat4& matrix) const override { matrix = orthographic(left, right, bottom, top, nearDistance, farDistance); }
+        dmat4 transform() const override { return orthographic(left, right, bottom, top, nearDistance, farDistance); }
+
         void changeExtent(const VkExtent2D& prevExtent, const VkExtent2D& newExtent) override
         {
             double oldRatio = static_cast<double>(prevExtent.width) / static_cast<double>(prevExtent.height);
@@ -118,22 +116,16 @@ namespace vsg
     class RelativeProjection : public Inherit<ProjectionMatrix, RelativeProjection>
     {
     public:
-        RelativeProjection(ref_ptr<ProjectionMatrix> pm, const dmat4& m) :
+        RelativeProjection(const dmat4& m, ref_ptr<ProjectionMatrix> pm) :
             projectionMatrix(pm),
             matrix(m)
         {
         }
 
-        void get(mat4& in_matrix) const override
+        /// returns matrix * projectionMatrix->transform()
+        dmat4 transform() const override
         {
-            projectionMatrix->get(in_matrix);
-            in_matrix = mat4(matrix) * in_matrix;
-        }
-
-        void get(dmat4& in_matrix) const override
-        {
-            projectionMatrix->get(in_matrix);
-            in_matrix = matrix * in_matrix;
+            return matrix * projectionMatrix->transform();
         }
 
         void changeExtent(const VkExtent2D& prevExtent, const VkExtent2D& newExtent) override
@@ -170,13 +162,7 @@ namespace vsg
         {
         }
 
-        void get(mat4& matrix) const override
-        {
-            dmat4 dm;
-            get(dm);
-            matrix = dm;
-        }
-        void get(dmat4& matrix) const override
+        dmat4 transform() const override
         {
             // std::cout<<"camera eye : "<<lookAt->eye<<", "<<ellipsoidModel->convertECEVToLatLongHeight(lookAt->eye)<<std::endl;
             vsg::dvec3 v = lookAt->eye;
@@ -199,7 +185,7 @@ namespace vsg
             double nearDistance = farDistance * nearFarRatio;
             //std::cout<<"H = "<<H<<", l = "<<l<<", theta = "<<vsg::degrees(theta)<<", fd = "<<farDistance<<std::endl;
 
-            matrix = perspective(radians(fieldOfViewY), aspectRatio, nearDistance, farDistance);
+            return perspective(radians(fieldOfViewY), aspectRatio, nearDistance, farDistance);
         }
 
         void changeExtent(const VkExtent2D& prevExtent, const VkExtent2D& newExtent) override

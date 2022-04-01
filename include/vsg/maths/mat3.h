@@ -32,10 +32,9 @@ namespace vsg
                   {0, 0, 1}} {}
 
         constexpr explicit t_mat3(value_type v) :
-            value{{v, 0, 0, 0},
-                  {0, v, 0, 0},
-                  {0, 0, v, 0},
-                  {0, 0, 0, v}} {}
+            value{{v, 0, 0},
+                  {0, v, 0},
+                  {0, 0, v}} {}
 
         constexpr t_mat3(value_type v0, value_type v1, value_type v2, /* column 0 */
                          value_type v3, value_type v4, value_type v5, /* column 1 */
@@ -50,6 +49,13 @@ namespace vsg
             value{{v[0], v[1], v[2]},
                   {v[3], v[4], v[5]},
                   {v[6], v[7], v[8]}} {}
+
+        constexpr t_mat3(const column_type& c0,
+                         const column_type& c1,
+                         const column_type& c2) :
+            value{c0, c1, c2}
+        {
+        }
 
         template<typename R>
         t_mat3(const t_mat3<R>& rhs)
@@ -114,6 +120,16 @@ namespace vsg
     }
 
     template<typename T>
+    bool operator<(const t_mat3<T>& lhs, const t_mat3<T>& rhs)
+    {
+        if (lhs.value[0] < rhs.value[0]) return true;
+        if (rhs.value[0] < lhs.value[0]) return false;
+        if (lhs.value[1] < rhs.value[1]) return true;
+        if (rhs.value[1] < lhs.value[1]) return false;
+        return lhs.value[2] < rhs.value[2];
+    }
+
+    template<typename T>
     T dot(const t_mat3<T>& lhs, const t_mat3<T>& rhs, int c, int r)
     {
         return lhs[0][r] * rhs[c][0] +
@@ -135,5 +151,13 @@ namespace vsg
         return t_vec3<T>((lhs[0][0] * rhs[0] + lhs[1][0] * rhs[1] + lhs[2][0] * rhs[2]),
                          (lhs[0][1] * rhs[0] + lhs[1][1] * rhs[1] + lhs[2][1] * rhs[2]),
                          (lhs[0][2] * rhs[0] + lhs[1][2] * rhs[1] + lhs[2][2] * rhs[2]));
+    }
+
+    template<typename T>
+    t_vec3<T> operator*(const t_vec3<T>& lhs, const t_mat3<T>& rhs)
+    {
+        return t_vec3<T>(lhs[0] * rhs[0][0] + lhs[1] * rhs[0][1] + lhs[2] * rhs[0][2],
+                         lhs[0] * rhs[1][0] + lhs[1] * rhs[1][1] + lhs[2] * rhs[1][2],
+                         lhs[0] * rhs[2][0] + lhs[1] * rhs[2][1] + lhs[2] * rhs[2][2]);
     }
 } // namespace vsg

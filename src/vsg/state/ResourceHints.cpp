@@ -15,8 +15,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 using namespace vsg;
 
-ResourceHints::ResourceHints(Allocator* allocator) :
-    Inherit(allocator)
+ResourceHints::ResourceHints()
 {
 }
 
@@ -45,6 +44,13 @@ void ResourceHints::read(Input& input)
         input.readValue<uint32_t>("type", type);
         input.read("count", count);
     }
+
+    if (input.version_greater_equal(0, 1, 11))
+    {
+        input.readValue<uint64_t>("minimumBufferSize", minimumBufferSize);
+        input.readValue<uint64_t>("minimumBufferDeviceMemorySize", minimumBufferDeviceMemorySize);
+        input.readValue<uint64_t>("minimumImageDeviceMemorySize", minimumImageDeviceMemorySize);
+    }
 }
 
 void ResourceHints::write(Output& output) const
@@ -67,5 +73,12 @@ void ResourceHints::write(Output& output) const
     {
         output.writeValue<uint32_t>("type", type);
         output.write("count", count);
+    }
+
+    if (output.version_greater_equal(0, 1, 11))
+    {
+        output.writeValue<uint64_t>("minimumBufferSize", minimumBufferSize);
+        output.writeValue<uint64_t>("minimumBufferDeviceMemorySize", minimumBufferDeviceMemorySize);
+        output.writeValue<uint64_t>("minimumImageDeviceMemorySize", minimumImageDeviceMemorySize);
     }
 }

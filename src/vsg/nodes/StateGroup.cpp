@@ -18,8 +18,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 using namespace vsg;
 
-StateGroup::StateGroup(Allocator* allocator) :
-    Inherit(allocator)
+StateGroup::StateGroup()
 {
 }
 
@@ -33,7 +32,7 @@ void StateGroup::read(Input& input)
 
     if (input.version_greater_equal(0, 1, 4))
     {
-        input.read("stateCommands", stateCommands);
+        input.readObjects("stateCommands", stateCommands);
     }
     else
     {
@@ -43,6 +42,11 @@ void StateGroup::read(Input& input)
             input.read("StateCommand", command);
         }
     }
+
+    if (input.version_greater_equal(0, 2, 3))
+    {
+        input.readObject("prototypeArrayState", prototypeArrayState);
+    }
 }
 
 void StateGroup::write(Output& output) const
@@ -51,7 +55,7 @@ void StateGroup::write(Output& output) const
 
     if (output.version_greater_equal(0, 1, 4))
     {
-        output.write("stateCommands", stateCommands);
+        output.writeObjects("stateCommands", stateCommands);
     }
     else
     {
@@ -60,6 +64,11 @@ void StateGroup::write(Output& output) const
         {
             output.write("StateCommand", command);
         }
+    }
+
+    if (output.version_greater_equal(0, 2, 3))
+    {
+        output.write("prototypeArrayState", prototypeArrayState);
     }
 }
 

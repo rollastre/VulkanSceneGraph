@@ -21,13 +21,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 namespace vsg
 {
 
+    /// RenderGraph encapsulates the vkCmdRenderPass/vkCmdEndRenderPass functionality.
+    /// Members variables of the RenderGraph map to the settings of the VkRenderPassBeginInfo.
+    /// During the RecordTraversal children of RenderGraph are visited within vkCmdRenderPass/vkCmdEndRenderPass pair.
     class VSG_DECLSPEC RenderGraph : public Inherit<Group, RenderGraph>
     {
     public:
         RenderGraph();
 
         /// Construct RenderGraph assigning window and setting up clearValues with the appropriate settings for the Window's attachments and color.
-        RenderGraph(ref_ptr<Window> in_window, ref_ptr<View> view = {});
+        explicit RenderGraph(ref_ptr<Window> in_window, ref_ptr<View> view = {});
 
         using Group::accept;
 
@@ -38,8 +41,11 @@ namespace vsg
         ref_ptr<Framebuffer> framebuffer;
         ref_ptr<Window> window;
 
-        /// RenderPass tp use passed to the vkCmdBeginRenderPass, either obtained from which of the framebuffer or window are active
+        /// RenderPass to use passed to the vkCmdBeginRenderPass, either obtained from which of the framebuffer or window are active
         RenderPass* getRenderPass();
+
+        /// Get the Exten2D of the attached Framebuffer or Window.
+        VkExtent2D getExtent() const;
 
         /// ReandingArea settings for VkRenderPassBeginInfo.renderArea passed to the vkCmdBeginRenderPass, usually maps the ViewportState's scissor
         VkRect2D renderArea;
@@ -47,6 +53,10 @@ namespace vsg
         /// Buffer clearing settings for vkRrenderPassInfo.clearValueCount & vkRenderPassInfo.pClearValues passed to the vkCmdBeginRenderPass
         using ClearValues = std::vector<VkClearValue>;
         ClearValues clearValues; // initialize window colour and depth/stencil
+
+        /// initialize cleaValues with the cleaColor or cleaDpethStencil based on the attachments set up in the associated RenderPass.
+        /// call after a framebuffer or window has been assigned to the RenderGraph.
+        void setClearValues(VkClearColorValue clearColor = {{0.2f, 0.2f, 0.4f, 1.0f}}, VkClearDepthStencilValue clearDepthStencil = {0.0f, 0});
 
         /// Subpass contents stetting passed to vkCmdBeginRenderPass
         VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE;
@@ -59,13 +69,13 @@ namespace vsg
         void resized();
 
         /// window extent at previous frame, used to track window resizes
-        const uint32_t invalid_dimension = std::numeric_limits<uint32_t>::max();
+        constexpr static uint32_t invalid_dimension = std::numeric_limits<uint32_t>::max();
         mutable VkExtent2D previous_extent = VkExtent2D{invalid_dimension, invalid_dimension};
     };
     VSG_type_name(vsg::RenderGraph);
 
     /// Convenience function that sets up RenderGraph and associated View to render the specified scene graph from the specified camera view.
     /// Assigns the WindowResizeHandler to provide basic window resize handling.
-    extern VSG_DECLSPEC ref_ptr<RenderGraph> createRenderGraphForView(ref_ptr<Window> window, ref_ptr<Camera> camera, ref_ptr<Node> scenegraph, VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE);
+    extern VSG_DECLSPEC ref_ptr<RenderGraph> createRenderGraphForView(ref_ptr<Window> window, ref_ptr<Camera> camera, ref_ptr<Node> scenegraph, VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE, bool assignHeadlight = true);
 
 } // namespace vsg

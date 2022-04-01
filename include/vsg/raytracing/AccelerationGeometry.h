@@ -25,7 +25,7 @@ namespace vsg
     class VSG_DECLSPEC AccelerationGeometry : public Inherit<Object, AccelerationGeometry>
     {
     public:
-        AccelerationGeometry(Allocator* allocator = nullptr);
+        AccelerationGeometry();
 
         void compile(Context& context);
 
@@ -34,10 +34,13 @@ namespace vsg
         ref_ptr<Data> verts;
         ref_ptr<Data> indices;
 
+        void assignVertices(ref_ptr<vsg::Data> in_vertices);
+        void assignIndices(ref_ptr<vsg::Data> in_indices);
+
     protected:
         // compiled data
-        BufferInfo _vertexBuffer;
-        BufferInfo _indexBuffer;
+        ref_ptr<BufferInfo> _vertexBuffer;
+        ref_ptr<BufferInfo> _indexBuffer;
         VkAccelerationStructureGeometryKHR _geometry;
     };
 

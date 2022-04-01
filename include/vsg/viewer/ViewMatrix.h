@@ -20,22 +20,16 @@ namespace vsg
     class VSG_DECLSPEC ViewMatrix : public Inherit<Object, ViewMatrix>
     {
     public:
-        virtual void get(mat4& matrix) const = 0;
-        virtual void get(dmat4& matrix) const = 0;
+        virtual dmat4 transform() const = 0;
 
-        virtual void get_inverse(mat4& matrix) const
+        virtual dmat4 inverse() const
         {
-            get(matrix);
-            matrix = inverse(matrix);
-        }
-        virtual void get_inverse(dmat4& matrix) const
-        {
-            get(matrix);
-            matrix = inverse(matrix);
+            return vsg::inverse(transform());
         }
     };
+    VSG_type_name(vsg::ViewMatrix);
 
-    class LookAt : public Inherit<ViewMatrix, LookAt>
+    class VSG_DECLSPEC LookAt : public Inherit<ViewMatrix, LookAt>
     {
     public:
         LookAt() :
@@ -77,37 +71,56 @@ namespace vsg
             eye = matrix * dvec3(0.0, 0.0, 0.0);
         }
 
-        void get(mat4& matrix) const override { matrix = lookAt(eye, center, up); }
-        void get(dmat4& matrix) const override { matrix = lookAt(eye, center, up); }
+        dmat4 transform() const override { return lookAt(eye, center, up); }
+
+        void read(Input& input) override;
+        void write(Output& output) const override;
 
         dvec3 eye;
         dvec3 center;
         dvec3 up;
     };
+    VSG_type_name(vsg::LookAt);
 
-    class RelativeView : public Inherit<ViewMatrix, RelativeView>
+    class RelativeViewMatrix : public Inherit<ViewMatrix, RelativeViewMatrix>
     {
     public:
-        RelativeView(ref_ptr<ViewMatrix> vm, const dmat4& m) :
-            viewMatrix(vm),
-            matrix(m)
+        RelativeViewMatrix(const dmat4& m, ref_ptr<ViewMatrix> vm) :
+            matrix(m),
+            viewMatrix(vm)
         {
         }
 
-        void get(mat4& in_matrix) const override
+        /// returns matrix * viewMatrix->transform()
+        dmat4 transform() const override
         {
-            viewMatrix->get(in_matrix);
-            in_matrix = mat4(matrix) * in_matrix;
+            return matrix * viewMatrix->transform();
         }
 
-        void get(dmat4& in_matrix) const override
-        {
-            viewMatrix->get(in_matrix);
-            in_matrix = matrix * in_matrix;
-        }
-
-        ref_ptr<ViewMatrix> viewMatrix;
         dmat4 matrix;
+        ref_ptr<ViewMatrix> viewMatrix;
     };
+    VSG_type_name(vsg::RelativeViewMatrix);
+
+    class VSG_DECLSPEC TrackingViewMatrix : public Inherit<ViewMatrix, TrackingViewMatrix>
+    {
+    public:
+        template<typename T>
+        explicit TrackingViewMatrix(const dmat4& initial_matrix, const T& path) :
+            matrix(initial_matrix),
+            objectPath(path.begin(), path.end()) {}
+
+        template<typename T>
+        explicit TrackingViewMatrix(const T& path) :
+            objectPath(path.begin(), path.end()) {}
+
+        /// returns matrix * computeTransfrom(objectPath)
+        dmat4 transform() const override;
+        dmat4 inverse() const override;
+
+        dmat4 matrix;
+        RefObjectPath objectPath;
+    };
+    VSG_type_name(vsg::TrackingViewMatrix);
 
 } // namespace vsg

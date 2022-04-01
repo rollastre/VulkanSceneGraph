@@ -52,7 +52,7 @@ namespace vsg
     class VSG_DECLSPEC DatabaseQueue : public Inherit<Object, DatabaseQueue>
     {
     public:
-        DatabaseQueue(ref_ptr<ActivityStatus> status);
+        explicit DatabaseQueue(ref_ptr<ActivityStatus> status);
 
         using Nodes = std::list<ref_ptr<PagedLOD>>;
 
@@ -102,9 +102,6 @@ namespace vsg
 
         virtual void updateSceneGraph(FrameStamp* frameStamp);
 
-        using Semaphores = std::set<ref_ptr<Semaphore>>;
-        Semaphores& getSemaphores() { return _semaphores; }
-
         ref_ptr<const Options> options;
 
         ref_ptr<CompileTraversal> compileTraversal;
@@ -134,8 +131,6 @@ namespace vsg
 
         std::list<std::thread> _readThreads;
         std::list<std::thread> _compileThreads;
-
-        Semaphores _semaphores;
     };
     VSG_type_name(vsg::DatabasePager);
 

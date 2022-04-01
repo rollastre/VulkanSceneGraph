@@ -31,6 +31,8 @@ namespace vsg
         ref_ptr<DescriptorSetLayout> setLayout;
         Descriptors descriptors;
 
+        int compare(const Object& rhs_object) const override;
+
         template<class N, class V>
         static void t_traverse(N& ds, V& visitor)
         {
@@ -101,10 +103,12 @@ namespace vsg
         }
 
         /// vkCmdBindDescriptorSets settings
-        VkPipelineBindPoint pipelineBindPoint;
+        VkPipelineBindPoint pipelineBindPoint; // TODO not currently serialized
         ref_ptr<PipelineLayout> layout;
         uint32_t firstSet;
         DescriptorSets descriptorSets;
+
+        int compare(const Object& rhs_object) const override;
 
         template<class N, class V>
         static void t_traverse(N& bds, V& visitor)
@@ -161,10 +165,12 @@ namespace vsg
         }
 
         // vkCmdBindDescriptorSets settings
-        VkPipelineBindPoint pipelineBindPoint;
+        VkPipelineBindPoint pipelineBindPoint; // TODO not currently serialized
         ref_ptr<PipelineLayout> layout;
         uint32_t firstSet;
         ref_ptr<DescriptorSet> descriptorSet;
+
+        int compare(const Object& rhs_object) const override;
 
         template<class N, class V>
         static void t_traverse(N& bds, V& visitor)
