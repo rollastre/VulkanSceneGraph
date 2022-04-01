@@ -323,17 +323,17 @@ bool vsgiOS::iOS_Window::pollEvents(vsg::UIEvents& events)
     return false;
 }
 
-bool vsgiOS::iOS_Window::resized() const
-{
-    const CGRect contentRect = [_view frame];
-
-    auto devicePixelScale = _traits->hdpi ? UIScreen.mainScreen.nativeScale : 1.0f;
-
-    uint32_t width = contentRect.size.width * devicePixelScale;
-    uint32_t height = contentRect.size.height * devicePixelScale;
-
-    return (width != _extent2D.width || height != _extent2D.height);
-}
+//bool vsgiOS::iOS_Window::resized() const
+//{
+//    const CGRect contentRect = [_view frame];
+//
+//    auto devicePixelScale = _traits->hdpi ? UIScreen.mainScreen.nativeScale : 1.0f;
+//
+//    uint32_t width = contentRect.size.width * devicePixelScale;
+//    uint32_t height = contentRect.size.height * devicePixelScale;
+//
+//    return (width != _extent2D.width || height != _extent2D.height);
+//}
 
 void vsgiOS::iOS_Window::resize()
 {

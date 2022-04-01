@@ -56,7 +56,7 @@ namespace vsgiOS
 
         bool pollEvents(vsg::UIEvents& events) override;
 
-        bool resized() const override;
+       // bool resized() const override;
 
         void resize() override;
 
