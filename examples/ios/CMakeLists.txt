@@ -649,7 +649,7 @@ target_link_libraries(${TARGET}
             COPYRIGHT "My Cool Copyright"
             # QML_DIR "${QT_IOS_QT_ROOT}/qml"
             # ASSET_DIR "path/to/Assets.xcassets"
-            # MAIN_STORYBOARD "/path/to/Main.storyboard"
+            # MAIN_STORYBOARD "Main.storyboard"
             # LAUNCHSCREEN_STORYBOARD "path/to/LaunchScreen.storyboard"
             # CATALOG_APPICON "AppIcon"
             # CATALOG_LAUNCHIMAGE "LaunchImage"

@@ -246,8 +246,24 @@ if (ANDROID)
 elseif (WIN32)
     set(SOURCES ${SOURCES} platform/win32/Win32_Window.cpp)
 elseif (IOS)
-    set(HEADERS ${HEADERS} ${CMAKE_SOURCE_DIR}/include/vsg/platform/ios/iOS_Window.h)
-    set(SOURCES ${SOURCES} platform/ios/iOS_Window.mm)
+    set(HEADERS ${HEADERS}
+        ${CMAKE_SOURCE_DIR}/include/vsg/platform/ios/iOS_Window.h
+        ${CMAKE_SOURCE_DIR}/include/vsg/platform/ios/iOS_ViewController.h
+
+     )
+    
+set(DELETE_ME_CUBE 0)
+
+if (DELETE_ME_CUBE)
+    set(VIEW_CONTROLLER iOS_ViewController.m)
+else()
+    set(VIEW_CONTROLLER iOS_ViewController.mm)
+endif()
+
+    set(SOURCES ${SOURCES}
+        platform/ios/iOS_Window.mm
+        platform/ios/${VIEW_CONTROLLER}
+    )
     set(LIBRARIES ${LIBRARIES} PRIVATE ${UIKIT_LIBRARY} PRIVATE ${QUARTZCORE_LIBRARY})
 elseif (APPLE)
     set(SOURCES ${SOURCES} platform/macos/MacOS_Window.mm)
@@ -260,10 +276,15 @@ endif()
 
 add_library(vsg ${HEADERS} ${SOURCES})
 
+if (DELETE_ME_CUBE)
+    target_compile_definitions(vsg PUBLIC -DCUBE_CONTROLLER=1)
+endif()
+
 if (IOS)
     target_include_directories(vsg
       PUBLIC
         /tmp/vulkan_install/MoltenVK/include
+        /Users/jaume/Documents/dev/vulkan/MoltenVK/Demos/Cube/include/
     )
 endif()
 

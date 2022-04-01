@@ -12,7 +12,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 </editor-fold> */
 
-#include <vsg/platform/ios/iOS_Window.h>
+
 
 #include <vsg/core/Exception.h>
 #include <vsg/core/observer_ptr.h>
@@ -26,9 +26,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <time.h>
 
 #include <UIKit/UIKit.h>
+#include <vulkan/vulkan.h>
 #include <vulkan/vulkan_metal.h>
 
 #include <vsg/viewer/Viewer.h>
+#include <vsg/platform/ios/iOS_ViewController.h>
+
+
+
 namespace vsg
 {
     // Provide the Window::create(...) implementation that automatically maps to a MacOS_Window
@@ -39,20 +44,9 @@ namespace vsg
 
 } // namespace vsg
 
-#pragma mark -
-#pragma mark vsg_iOS_ViewController
-@interface vsg_iOS_Window : UIWindow
-@end
 
-#pragma mark -
-#pragma mark vsg_iOS_ViewController
-@interface vsg_iOS_ViewController : UIViewController
-@end
 
-#pragma mark -
-#pragma mark vsg_iOS_View
-@interface vsg_iOS_View : UIView
-@end
+
 
 
 
@@ -64,25 +58,59 @@ namespace vsg
 
 @implementation vsg_iOS_Window
 {
-    vsgiOS::iOS_Window* vsgWindow;
     vsg::ref_ptr<vsg::WindowTraits> _traits;
+    vsg::ref_ptr<vsg::Viewer>       _vsgViewer;
+
 }
-- (instancetype)initWithVsgWindow:(vsgiOS::iOS_Window*)initWindow andTraits:(vsg::ref_ptr<vsg::WindowTraits>)traits
+
+//- (instancetype)init
+//{
+//    self = [self initWithFrame:UIScreen.mainScreen.bounds];
+//    return self;
+//}
+
+
+- (instancetype)initWithTraits:(vsg::ref_ptr<vsg::WindowTraits>)traits andVsgViewer:(vsg::ref_ptr<vsg::Viewer>) vsgViewer
 {
-    self = [super initWithFrame:CGRectMake(traits->x, traits->y, traits->width, traits->height)];
+    _traits = traits;
+    _vsgViewer = vsgViewer;
+    CGRect frame;
+    frame.origin.x = _traits->x;
+    frame.origin.y = _traits->y;
+    frame.size.width  = _traits->width <= 0 ? 1 : _traits->width;
+    frame.size.height = _traits->height <= 0 ? 1 : _traits->height;
+    self = [super initWithFrame:frame];
     if (self != nil)
     {
-        vsgWindow = initWindow;
-        _traits = traits;
-    }
+        vsg_iOS_ViewController* vc = [[vsg_iOS_ViewController alloc] initWithTraits: traits andVsgViewer: vsgViewer];
+        self.rootViewController = vc;
+     }
 
     return self;
 }
 
+- (void)makeKeyAndVisible
+{
+    [super makeKeyAndVisible];
+    
+    vsg_iOS_Window* nWindow = self;
+    _traits->nativeWindow = nWindow;
+    
+    vsg::ref_ptr<vsg::Window> w = vsg::Window::create(_traits);
+    ((vsg_iOS_ViewController*)self.rootViewController).vsgWindow = w;
+    _vsgViewer->addWindow(w);
+}
+
+- (vsg::ref_ptr<vsg::Window>)vsgWindow
+{
+    return ((vsg_iOS_ViewController*)self.rootViewController).vsgWindow;
+}
+
 - (BOOL)windowShouldClose:(id)sender
 {
-    vsg::clock::time_point event_time = vsg::clock::now();
-    vsgWindow->queueEvent(new vsg::CloseWindowEvent(vsgWindow, event_time));
+    // TODO
+//    vsg::clock::time_point event_time = vsg::clock::now();
+//    _vsgWindow->queueEvent(new vsg::CloseWindowEvent(vsgWindow, event_time));
     return NO;
 }
 
@@ -96,63 +124,6 @@ namespace vsg
 #pragma mark -
 #pragma mark vsg_iOS_ViewController
 
-@implementation vsg_iOS_ViewController {
-    CADisplayLink* _displayLink;
-    vsg::Viewer* vsgViewer;
-    vsg_iOS_View* vsgView;
-}
-
-//-(id) init
-//{
-//    self = [super init];
-//    return self;
-//}
--(id) initWithVsgView:(vsg_iOS_View*) view andVsgViewer:(vsg::Viewer*) vsgViewer
-{
-    self = [super init];
-    self.view = view;
-    self->vsgView = view;
-    self->vsgViewer = vsgViewer;
-    
-    uint32_t fps = 60;
-    _displayLink = [CADisplayLink displayLinkWithTarget: self selector: @selector(renderLoop)];
-    [_displayLink setPreferredFramesPerSecond: fps];
-    [_displayLink addToRunLoop: NSRunLoop.currentRunLoop forMode: NSDefaultRunLoopMode];
-   
-    return self;
-}
-
-
--(void) renderLoop {
-    if (self->vsgViewer->advanceToNextFrame())
-    {
-        self->vsgViewer->compile();
-
-        self->vsgViewer->handleEvents();
-        self->vsgViewer->update();
-        self->vsgViewer->recordAndSubmit();
-        self->vsgViewer->present();
-    }
-}
-
-// Allow device rotation to resize the swapchain
--(void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id)coordinator {
-    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-    
-}
-
-- (UIInterfaceOrientationMask)supportedInterfaceOrientations
-{
-    return UIInterfaceOrientationMaskAll;
-}
-
-- (BOOL)shouldAutorotate
-{
-    return YES;
-}
-@end
-
-
 
 
 
@@ -165,17 +136,6 @@ namespace vsg
     vsg::ref_ptr<vsg::WindowTraits> _traits;
 }
 
-- (instancetype)initWithVsgWindow:(vsgiOS::iOS_Window*)initWindow andTraits:(vsg::ref_ptr<vsg::WindowTraits>)traits
-{
-    self = [super initWithFrame:CGRectMake(traits->x, traits->y, traits->width, traits->height)];
-    if (self != nil)
-    {
-        vsgWindow = initWindow;
-        _traits = traits;
-    }
-
-    return self;
-}
 /** Returns a Metal-compatible layer. */
 +(Class) layerClass { return [CAMetalLayer class]; }
 
@@ -277,14 +237,14 @@ namespace vsgiOS
     class iOSSurface : public vsg::Surface
     {
     public:
-        iOSSurface(vsg::Instance* instance, vsg_iOS_View* window)
+        iOSSurface(vsg::Instance* instance, CAMetalLayer* caMetalLayer)
             : vsg::Surface(VK_NULL_HANDLE, instance)
         {
             VkMetalSurfaceCreateInfoEXT surfaceCreateInfo{};
             surfaceCreateInfo.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
             surfaceCreateInfo.pNext = nullptr;
             surfaceCreateInfo.flags = 0;
-            surfaceCreateInfo.pLayer = (CAMetalLayer*)window.layer;
+            surfaceCreateInfo.pLayer = caMetalLayer;
             
             auto res = vkCreateMetalSurfaceEXT(*instance, &surfaceCreateInfo, _instance->getAllocationCallbacks(), &_surface);
             if (res != VK_SUCCESS || _surface == VK_NULL_HANDLE)
@@ -298,20 +258,17 @@ namespace vsgiOS
 vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     : Inherit(traits)
 {
-    auto devicePixelScale = 1;//_traits->hdpi ?  UIScreen.mainScreen.nativeScale : 1.0f;
-  
+    auto devicePixelScale = _traits->hdpi ?  UIScreen.mainScreen.nativeScale : 1.0f;
+    _window = /*(__bridge vsg_iOS_View*)*/(std::any_cast<vsg_iOS_Window*>(traits->nativeWindow));
+    _view = (vsg_iOS_View*)( _window.rootViewController.view );
     _keyboard = new KeyboardMap;
-    _view = [ [vsg_iOS_View alloc] initWithVsgWindow:this andTraits:traits];
-    _window = [ [vsg_iOS_Window alloc] initWithVsgWindow:this andTraits:traits];
     _window.backgroundColor = [UIColor redColor];
-    auto vsgViewer = std::any_cast<vsg::ref_ptr<vsg::Viewer>>(traits->systemConnection);
-    _window.rootViewController = [[vsg_iOS_ViewController alloc] initWithVsgView:_view andVsgViewer:vsgViewer.get()];
+    
     _metalLayer = (CAMetalLayer*) _view.layer;
     
     
     _view.backgroundColor = [UIColor grayColor];
-    [_view becomeFirstResponder]; // TODO needed?
-    [_window makeKeyAndVisible];
+   
     
     // we could get the width height from the window?
     uint32_t finalwidth = traits->width * devicePixelScale;
@@ -325,7 +282,7 @@ vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     vsg::clock::time_point event_time = vsg::clock::now();
     _bufferedEvents.emplace_back(new vsg::ConfigureWindowEvent(this, event_time, _traits->x, _traits->y, finalwidth, finalheight));
 
-    traits->nativeWindow = _window;
+    
     
     
 }
@@ -339,7 +296,7 @@ void vsgiOS::iOS_Window::_initSurface()
 {
     if (!_instance) _initInstance();
 
-    _surface = new vsgiOS::iOSSurface(_instance, _view);
+    _surface = new vsgiOS::iOSSurface(_instance, _metalLayer);
 }
 
 bool vsgiOS::iOS_Window::pollEvents(vsg::UIEvents& events)

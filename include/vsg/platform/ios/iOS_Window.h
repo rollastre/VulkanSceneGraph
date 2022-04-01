@@ -15,7 +15,12 @@
 #include <vulkan/vulkan_metal.h>
 #include <UIKit/UiKit.h>
 
-@class vsg_iOS_Window;
+@interface vsg_iOS_Window : UIWindow
+- (vsg::ref_ptr<vsg::Window>) vsgWindow;
+- (instancetype)initWithTraits:(vsg::ref_ptr<vsg::WindowTraits>)traits andVsgViewer:(vsg::ref_ptr<vsg::Viewer>) vsgViewer;
+@end
+
+
 @class vsg_iOS_View;
 
 namespace vsgiOS
@@ -57,9 +62,9 @@ namespace vsgiOS
 
         bool handleUIEvent(UIEvent* anEvent);
 
-        // native objects
+        // OS native objects
         vsg_iOS_Window* window() { return _window; };
-        vsg_iOS_View* view() { return _view; };
+      //  vsg_iOS_View* view() { return _view; };
         CAMetalLayer* layer() { return _metalLayer; };
 
         vsg::clock::time_point getEventTime(double eventTime)

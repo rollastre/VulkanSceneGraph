@@ -2,6 +2,7 @@
 
 #include <vsg/viewer/Window.h>
 #include <vsg/viewer/Viewer.h>
+#include <vsg/platform/ios/iOS_Window.h>
 #import <UIKit/UIKit.h>
 
 #include <vsg/all.h>
@@ -11,12 +12,9 @@ using namespace vsg;
 // Application delegate
 //------------------------------------------------------------------------
 @interface vsgiOSAppDelegate : UIResponder <UIApplicationDelegate>
-@property (strong, nonatomic) UIWindow *window;
-@property (strong, nonatomic) UIViewController *viewController;
-@property ref_ptr<vsg::Window> vsgWindow;
-@property ref_ptr<vsg::Viewer> vsgViewer;
-@property ref_ptr<vsg::Camera> camera;
+@property (strong, nonatomic) vsg_iOS_Window *window;
 @end
+
 
 #define LOG(x) std::cout << x << std::endl
 
@@ -639,172 +637,172 @@ protected:
 
 @implementation vsgiOSAppDelegate
 
-
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    // Override point for customization after application launch.
-    ref_ptr<WindowTraits> traits = WindowTraits::create();
     
     auto mainScreen =[UIScreen mainScreen];
     auto bounds = [mainScreen bounds];
-    auto size = bounds.size;
-    auto origin = bounds.origin;
-    traits->x = origin.x;
-    traits->y = origin.y;
-    traits->width = size.width;
-    traits->height= size.height;
     
-    traits->debugLayer = true;
-    traits->apiDumpLayer = true;
-    self.vsgViewer = vsg::Viewer::create();
-    traits->systemConnection = self.vsgViewer;
-    self.vsgWindow = vsg::Window::create(traits);
-    
-    
-    
-    
-    // BEGIN code that should be in the View
-    {
-        auto sz = self.vsgWindow->extent2D();
-        auto viewport = vsg::ViewportState::create(sz);
-
-        auto perspective = vsg::Perspective::create(60.0, static_cast<double>(sz.width) / static_cast<double>(sz.height), 0.1, 10.0);
-        auto eye = vsg::dvec3(0.0, 0.0, 5.0);
-        auto center =  vsg::dvec3(0.0, 0.0, 0.0);
-        auto up = vsg::dvec3(0.0, 1.0, 0.0);
-        auto lookAt = vsg::LookAt::create(eye, center, up);
-        self.camera = vsg::Camera::create(perspective, lookAt, viewport);
+#if defined CUBE_CONTROLLER
+    { // good code
+        self.window = [[UIWindow alloc] initWithFrame:bounds];
+        vsg_iOS_ViewController* vc = [[vsg_iOS_ViewController alloc] init];
+        self.window.rootViewController = vc;
+        self.window.makeKeyAndVisible;
     }
-    // END code that should be in the view
-
-    // add a trackball event handler to control the camera view use the mouse
-    // TODO substitute this by the navigation
-
-
-   
-
-    LOG("Ttrackball supposedly with touch is created");
-    self.vsgViewer->addEventHandler(TouchTrackball::create(self.camera));
-
-
-
-    // set up search paths to SPIRV shaders and textures
-    vsg::Paths searchPaths = vsg::getEnvPaths("VSG_FILE_PATH");
-
-    // load shaders from embedded resources :-)
-    vsg::ShaderModule::SPIRV spirv;
-    spirv.resize(vert_PushConstants_spv_size/sizeof(uint32_t));
-    auto spirv_data = reinterpret_cast<unsigned char*>(spirv.data());
-    memcpy(spirv_data, vert_PushConstants_spv, vert_PushConstants_spv_size);
-    vsg::ref_ptr<vsg::ShaderStage> vertexShader = vsg::ShaderStage::create(VK_SHADER_STAGE_VERTEX_BIT, "main", spirv);
-
-    spirv.resize(frag_PushConstants_spv_size/sizeof(uint32_t));
-    spirv_data = reinterpret_cast<unsigned char*>(spirv.data());
-    memcpy(spirv_data, frag_PushConstants_spv, frag_PushConstants_spv_size);
-    vsg::ref_ptr<vsg::ShaderStage> fragmentShader = vsg::ShaderStage::create(VK_SHADER_STAGE_FRAGMENT_BIT, "main", spirv);
-    LOG("SPIRV shaders created");
-
-    if (!vertexShader || !fragmentShader)
+#else
     {
-        vsg::Exception ex;
-        ex.message = "Could not create shaders.";
-        LOG( "Could not create shaders.");
-        throw ex;
-    }
-
-
-
-
-    // set up graphics pipeline
-    vsg::DescriptorSetLayoutBindings descriptorBindings
-    {
-        {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr} // { binding, descriptorTpe, descriptorCount, stageFlags, pImmutableSamplers}
-    };
-
-    auto descriptorSetLayout = vsg::DescriptorSetLayout::create(descriptorBindings);
-
-    vsg::PushConstantRanges pushConstantRanges
-    {
-        {VK_SHADER_STAGE_VERTEX_BIT, 0, 128} // projection view, and model matrices, actual push constant calls autoaatically provided by the VSG's DispatchTraversal
-    };
-
-    vsg::VertexInputState::Bindings vertexBindingsDescriptions
-    {
-        VkVertexInputBindingDescription{0, sizeof(vsg::vec3), VK_VERTEX_INPUT_RATE_VERTEX}, // vertex data
-        VkVertexInputBindingDescription{1, sizeof(vsg::vec3), VK_VERTEX_INPUT_RATE_VERTEX}, // colour data
-        VkVertexInputBindingDescription{2, sizeof(vsg::vec2), VK_VERTEX_INPUT_RATE_VERTEX}  // tex coord data
-    };
-
-    vsg::VertexInputState::Attributes vertexAttributeDescriptions
-    {
-        VkVertexInputAttributeDescription{0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0}, // vertex data
-        VkVertexInputAttributeDescription{1, 1, VK_FORMAT_R32G32B32_SFLOAT, 0}, // colour data
-        VkVertexInputAttributeDescription{2, 2, VK_FORMAT_R32G32_SFLOAT, 0},    // tex coord data
-    };
-
-    vsg::GraphicsPipelineStates pipelineStates
-    {
-        vsg::VertexInputState::create( vertexBindingsDescriptions, vertexAttributeDescriptions ),
-                vsg::InputAssemblyState::create(),
-                vsg::RasterizationState::create(),
-                vsg::MultisampleState::create(),
-                vsg::ColorBlendState::create(),
-                vsg::DepthStencilState::create()
-    };
-
-    auto pipelineLayout = vsg::PipelineLayout::create(vsg::DescriptorSetLayouts{descriptorSetLayout}, pushConstantRanges);
-    auto graphicsPipeline = vsg::GraphicsPipeline::create(pipelineLayout, vsg::ShaderStages{vertexShader, fragmentShader}, pipelineStates);
-    auto bindGraphicsPipeline = vsg::BindGraphicsPipeline::create(graphicsPipeline);
-
-    // BEGIN code that I believe should be in the widget
-    auto textureData = vsg::vec4Array2D::create(1, 1, vsg::Data::Layout{VK_FORMAT_R32G32B32A32_SFLOAT});
-    textureData->set(0, 0, vsg::vec4(1.0f, 1.0f, 0.5f, 1.0f));
-
-    // create texture image and associated DescriptorSets and binding
-
-    auto texture = vsg::DescriptorImage::create(vsg::Sampler::create(), textureData, 0, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-    auto descriptorSet = vsg::DescriptorSet::create(descriptorSetLayout, vsg::Descriptors{texture});
-    auto bindDescriptorSets = vsg::BindDescriptorSets::create(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, vsg::DescriptorSets{descriptorSet});
-
-    vsg::ref_ptr<vsg::StateGroup> rootNode = vsg::StateGroup::create();
-    rootNode->add(bindGraphicsPipeline);
-    rootNode->add(bindDescriptorSets);
-
-
-
-    { // DO NOT DELETE THIS BECAUSE IN AN EXTREME CASE THIS WILL SHOW SOMETHING (just comment it out when you don't need it)
-        auto origin = vsg::vec3(0.0, 0.0, 2.0);
-        auto horizontal = vsg::vec3(1, 0.0, 0.0);
-        auto vertical = vsg::vec3(0.0, 1.0, 0.0);
-        rootNode->addChild(createQuad( origin, horizontal, vertical));
-
-    }
-
-    vsg::ref_ptr<vsg::CommandGraph> commandGraph;
-    try
-    {
-        commandGraph = vsg::createCommandGraphForView(self.vsgWindow, self.camera, rootNode);
-        LOG("vulkan command graph is created");
-    }
-    catch (vsg::Exception& vsgEx)
-    {
-        (void)vsgEx;
-#if __OS__LINUX__
-        if (vsgEx.result == VK_ERROR_INVALID_EXTERNAL_HANDLE)
+        vsg::ref_ptr<vsg::Viewer> vsgViewer = vsg::Viewer::create();
+        vsg::ref_ptr<vsg::WindowTraits> traits = vsg::WindowTraits::create();
+        traits->x = bounds.origin.x;
+        traits->y = bounds.origin.y;
+        traits->width = bounds.size.width;
+        traits->height = bounds.size.height;
+        self.window = [[vsg_iOS_Window alloc] initWithTraits: traits andVsgViewer: vsgViewer];
+        self.window.makeKeyAndVisible;
+        vsg::ref_ptr<vsg::Window> vsgWindow = self.window.vsgWindow;
         {
-               LOG("Failed initializing vulkan device. Since you are in Linux, perhaps you'll need to run 'apt install mesa-vulkan-drivers' or similar..");
-            return 1;
+            
+            // BEGIN code that should be in the View
+            
+            VkExtent2D  sz ;
+            sz.width = bounds.size.width;
+            sz.height = bounds.size.height;
+                auto viewport = vsg::ViewportState::create(sz);
+
+                auto perspective = vsg::Perspective::create(60.0, static_cast<double>(sz.width) / static_cast<double>(sz.height), 0.1, 10.0);
+                auto eye = vsg::dvec3(0.0, 0.0, 5.0);
+                auto center =  vsg::dvec3(0.0, 0.0, 0.0);
+                auto up = vsg::dvec3(0.0, 1.0, 0.0);
+                auto lookAt = vsg::LookAt::create(eye, center, up);
+                vsg::ref_ptr<vsg::Camera> camera = vsg::Camera::create(perspective, lookAt, viewport);
+            
+
+            LOG("Ttrackball supposedly with touch is created");
+            vsgViewer->addEventHandler(TouchTrackball::create(camera));
+
+            // load shaders from embedded resources :-)
+            vsg::ShaderModule::SPIRV spirv;
+            spirv.resize(vert_PushConstants_spv_size/sizeof(uint32_t));
+            auto spirv_data = reinterpret_cast<unsigned char*>(spirv.data());
+            memcpy(spirv_data, vert_PushConstants_spv, vert_PushConstants_spv_size);
+            vsg::ref_ptr<vsg::ShaderStage> vertexShader = vsg::ShaderStage::create(VK_SHADER_STAGE_VERTEX_BIT, "main", spirv);
+
+            spirv.resize(frag_PushConstants_spv_size/sizeof(uint32_t));
+            spirv_data = reinterpret_cast<unsigned char*>(spirv.data());
+            memcpy(spirv_data, frag_PushConstants_spv, frag_PushConstants_spv_size);
+            vsg::ref_ptr<vsg::ShaderStage> fragmentShader = vsg::ShaderStage::create(VK_SHADER_STAGE_FRAGMENT_BIT, "main", spirv);
+            LOG("SPIRV shaders created");
+
+            if (!vertexShader || !fragmentShader)
+            {
+                vsg::Exception ex;
+                ex.message = "Could not create shaders.";
+                LOG( "Could not create shaders.");
+                throw ex;
+            }
+
+
+
+
+            // set up graphics pipeline
+            vsg::DescriptorSetLayoutBindings descriptorBindings
+            {
+                {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr} // { binding, descriptorTpe, descriptorCount, stageFlags, pImmutableSamplers}
+            };
+
+            auto descriptorSetLayout = vsg::DescriptorSetLayout::create(descriptorBindings);
+
+            vsg::PushConstantRanges pushConstantRanges
+            {
+                {VK_SHADER_STAGE_VERTEX_BIT, 0, 128} // projection view, and model matrices, actual push constant calls autoaatically provided by the VSG's DispatchTraversal
+            };
+
+            vsg::VertexInputState::Bindings vertexBindingsDescriptions
+            {
+                VkVertexInputBindingDescription{0, sizeof(vsg::vec3), VK_VERTEX_INPUT_RATE_VERTEX}, // vertex data
+                VkVertexInputBindingDescription{1, sizeof(vsg::vec3), VK_VERTEX_INPUT_RATE_VERTEX}, // colour data
+                VkVertexInputBindingDescription{2, sizeof(vsg::vec2), VK_VERTEX_INPUT_RATE_VERTEX}  // tex coord data
+            };
+
+            vsg::VertexInputState::Attributes vertexAttributeDescriptions
+            {
+                VkVertexInputAttributeDescription{0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0}, // vertex data
+                VkVertexInputAttributeDescription{1, 1, VK_FORMAT_R32G32B32_SFLOAT, 0}, // colour data
+                VkVertexInputAttributeDescription{2, 2, VK_FORMAT_R32G32_SFLOAT, 0},    // tex coord data
+            };
+
+            vsg::GraphicsPipelineStates pipelineStates
+            {
+                vsg::VertexInputState::create( vertexBindingsDescriptions, vertexAttributeDescriptions ),
+                        vsg::InputAssemblyState::create(),
+                        vsg::RasterizationState::create(),
+                        vsg::MultisampleState::create(),
+                        vsg::ColorBlendState::create(),
+                        vsg::DepthStencilState::create()
+            };
+
+            auto pipelineLayout = vsg::PipelineLayout::create(vsg::DescriptorSetLayouts{descriptorSetLayout}, pushConstantRanges);
+            auto graphicsPipeline = vsg::GraphicsPipeline::create(pipelineLayout, vsg::ShaderStages{vertexShader, fragmentShader}, pipelineStates);
+            auto bindGraphicsPipeline = vsg::BindGraphicsPipeline::create(graphicsPipeline);
+
+            // BEGIN code that I believe should be in the widget
+            auto textureData = vsg::vec4Array2D::create(1, 1, vsg::Data::Layout{VK_FORMAT_R32G32B32A32_SFLOAT});
+            textureData->set(0, 0, vsg::vec4(1.0f, 1.0f, 0.5f, 1.0f));
+
+            // create texture image and associated DescriptorSets and binding
+
+            auto texture = vsg::DescriptorImage::create(vsg::Sampler::create(), textureData, 0, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+
+            auto descriptorSet = vsg::DescriptorSet::create(descriptorSetLayout, vsg::Descriptors{texture});
+            auto bindDescriptorSets = vsg::BindDescriptorSets::create(VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, vsg::DescriptorSets{descriptorSet});
+
+            auto rootNode = vsg::StateGroup::create();
+
+
+
+            { // DO NOT DELETE THIS BECAUSE IN AN EXTREME CASE THIS WILL SHOW SOMETHING (just comment it out when you don't need it)
+                auto origin = vsg::vec3(0.0, 0.0, 2.0);
+                auto horizontal = vsg::vec3(1, 0.0, 0.0);
+                auto vertical = vsg::vec3(0.0, 1.0, 0.0);
+                rootNode->addChild(createQuad( origin, horizontal, vertical));
+
+            }
+    //        {
+    //            auto widget = new Widget;
+    //            widget->setGeometry(Rectangle2dF(Point2dF({0,0}), Point2dF({1,1})));
+    //            _rootWidget = widget;
+    //        }
+            vsg::ref_ptr<vsg::CommandGraph> commandGraph;
+            try
+            {
+                commandGraph = vsg::createCommandGraphForView(vsgWindow, camera, rootNode);
+                LOG("vulkan command graph is created");
+            }
+            catch (vsg::Exception& vsgEx)
+            {
+                (void)vsgEx;
+        #if __OS__LINUX__
+                if (vsgEx.result == VK_ERROR_INVALID_EXTERNAL_HANDLE)
+                {
+                    LOG("Failed initializing vulkan device. Since you are in Linux, perhaps you'll need to run 'apt install mesa-vulkan-drivers' or similar..");
+                    return 1;
+                }
+                throw;
+        #endif
+            }
+            vsgViewer->assignRecordAndSubmitTaskAndPresentation({commandGraph});
+
+
+    //        // assign a CloseHandler to the Viewer to respond to pressing Escape or press the window close button
+    //        viewer->addEventHandlers({CloseHandler::create(this)});
+
+            // flag this as dirty so compile gets called
+//            update();
+
+
         }
-        throw;
-#endif
     }
-    self.vsgViewer->assignRecordAndSubmitTaskAndPresentation({commandGraph});
-    
-    
-    
-    self.vsgWindow->getOrCreateRenderPass();
-    self.vsgWindow->resize();
-  
+#endif
  
     return YES;
 }
