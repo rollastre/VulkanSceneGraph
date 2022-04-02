@@ -9,7 +9,6 @@
     CADisplayLink* _displayLink;
     vsg::ref_ptr<vsg::WindowTraits>     _traits;
     vsg::ref_ptr<vsg::Viewer>           _vsgViewer;
-    //vsg::ref_ptr<vsg::Window>           _vsgWindow;
 }
 
 - (instancetype)initWithTraits:(vsg::ref_ptr<vsg::WindowTraits>)traits andVsgViewer:(vsg::ref_ptr<vsg::Viewer>) vsgViewer
@@ -38,7 +37,9 @@
 }
 
 -(void) dealloc {
-  
+    _traits = nullptr;
+    _vsgViewer = nullptr;
+    _vsgWindow = nullptr;
 }
 
 
@@ -46,18 +47,15 @@
     [super viewDidLoad];
     
     self.view.contentScaleFactor = UIScreen.mainScreen.nativeScale;
- 
-    
     uint32_t fps = 60;
     _displayLink = [CADisplayLink displayLinkWithTarget: self selector: @selector(renderLoop)];
-    [_displayLink setFrameInterval: 60 / fps];
+    [_displayLink setPreferredFramesPerSecond: fps];
     [_displayLink addToRunLoop: NSRunLoop.currentRunLoop forMode: NSDefaultRunLoopMode];
 }
 
 -(void) renderLoop {
    if (self->_vsgViewer->advanceToNextFrame())
    {
-       printf( "render loop\n");
        self->_vsgViewer->compile();
        self->_vsgViewer->handleEvents();
        self->_vsgViewer->update();
@@ -69,7 +67,7 @@
 // Allow device rotation to resize the swapchain
 -(void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id)coordinator {
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-
+    // TODO implement this
 }
 
 @end

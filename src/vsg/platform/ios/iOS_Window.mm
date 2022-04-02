@@ -32,24 +32,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <vsg/viewer/Viewer.h>
 #include <vsg/platform/ios/iOS_ViewController.h>
 
-
-
 namespace vsg
 {
-    // Provide the Window::create(...) implementation that automatically maps to a MacOS_Window
+    // Provide the Window::create(...) implementation that automatically maps to a iOS_Window
     vsg::ref_ptr<Window> Window::create(vsg::ref_ptr<vsg::WindowTraits> traits)
     {
         return vsgiOS::iOS_Window::create(traits);
     }
 
 } // namespace vsg
-
-
-
-
-
-
-
 
 
 #pragma mark -
@@ -62,13 +53,6 @@ namespace vsg
     vsg::ref_ptr<vsg::Viewer>       _vsgViewer;
 
 }
-
-//- (instancetype)init
-//{
-//    self = [self initWithFrame:UIScreen.mainScreen.bounds];
-//    return self;
-//}
-
 
 - (instancetype)initWithTraits:(vsg::ref_ptr<vsg::WindowTraits>)traits andVsgViewer:(vsg::ref_ptr<vsg::Viewer>) vsgViewer
 {
@@ -109,23 +93,12 @@ namespace vsg
 - (BOOL)windowShouldClose:(id)sender
 {
     // TODO
-//    vsg::clock::time_point event_time = vsg::clock::now();
-//    _vsgWindow->queueEvent(new vsg::CloseWindowEvent(vsgWindow, event_time));
+    vsg::clock::time_point event_time = vsg::clock::now();
+    //self.vsgWindow->queueEvent(new vsg::CloseWindowEvent(self.vsgWindow, event_time));
     return NO;
 }
 
 @end
-
-
-
-
-
-
-#pragma mark -
-#pragma mark vsg_iOS_ViewController
-
-
-
 
 #pragma mark -
 #pragma mark vsg_iOS_View
@@ -199,37 +172,37 @@ namespace vsg
 {
     vsgWindow->handleUIEvent(event);
 }
+
 - (void)motionEnded:(UIEventSubtype)motion withEvent:(UIEvent *)event
 {
     vsgWindow->handleUIEvent(event);
 }
 
-//- (void)cursorUpdate:(UIEvent *)event
-//{
-//}
-//
-//- (void)mouseDown:(UIEvent *)event
-//{
-//    self.window.handleUIEvent(event);
-//}
-//
-//- (void)mouseDragged:(UIEvent *)event
-//{
-//    window->handleUIEvent(event);
-//}
-//
-//- (void)mouseUp:(UIEvent *)event
-//{
-//    window->handleUIEvent(event);
-//}
-//
-//- (void)mouseMoved:(UIEvent *)event
-//{
-//    window->handleUIEvent(event);
-//}
+- (void)cursorUpdate:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+
+- (void)mouseDown:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+
+- (void)mouseDragged:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+
+- (void)mouseUp:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
+
+- (void)mouseMoved:(UIEvent *)event
+{
+    vsgWindow->handleUIEvent(event);
+}
 @end
-
-
 
 
 namespace vsgiOS
@@ -249,9 +222,7 @@ namespace vsgiOS
             auto res = vkCreateMetalSurfaceEXT(*instance, &surfaceCreateInfo, _instance->getAllocationCallbacks(), &_surface);
             if (res != VK_SUCCESS || _surface == VK_NULL_HANDLE)
                 std::cerr << "[ERROR] Failed creating VkSurface";
-            
         }
-        
     };
 }
 
@@ -259,32 +230,20 @@ vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     : Inherit(traits)
 {
     auto devicePixelScale = _traits->hdpi ?  UIScreen.mainScreen.nativeScale : 1.0f;
-    _window = /*(__bridge vsg_iOS_View*)*/(std::any_cast<vsg_iOS_Window*>(traits->nativeWindow));
+    _window = std::any_cast<vsg_iOS_Window*>(traits->nativeWindow);
     _view = (vsg_iOS_View*)( _window.rootViewController.view );
     _keyboard = new KeyboardMap;
-    _window.backgroundColor = [UIColor redColor];
-    
     _metalLayer = (CAMetalLayer*) _view.layer;
     
-    
-    _view.backgroundColor = [UIColor grayColor];
-   
-    
-    // we could get the width height from the window?
     uint32_t finalwidth = traits->width * devicePixelScale;
     uint32_t finalheight = traits->height * devicePixelScale;
     
     _extent2D.width = finalwidth;
     _extent2D.height = finalheight;
     
-    std::cout << "[Delete this] VSG screen size is " << _extent2D.width << "x" << _extent2D.height << std::endl;
     // manually trigger configure here??
     vsg::clock::time_point event_time = vsg::clock::now();
     _bufferedEvents.emplace_back(new vsg::ConfigureWindowEvent(this, event_time, _traits->x, _traits->y, finalwidth, finalheight));
-
-    
-    
-    
 }
 
 vsgiOS::iOS_Window::~iOS_Window()
