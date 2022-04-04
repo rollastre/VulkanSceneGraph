@@ -92,9 +92,9 @@ namespace vsg
 
 - (BOOL)windowShouldClose:(id)sender
 {
-    // TODO
-    vsg::clock::time_point event_time = vsg::clock::now();
-    //self.vsgWindow->queueEvent(new vsg::CloseWindowEvent(self.vsgWindow, event_time));
+    vsgiOS::iOS_Window* w = static_cast<vsgiOS::iOS_Window*>(self.vsgWindow.get());
+    vsg::clock::time_point event_time = vsg::clock::now(); // TODO call window getEventTime()??
+    w->queueEvent(new vsg::CloseWindowEvent(w, event_time));
     return NO;
 }
 
@@ -105,7 +105,7 @@ namespace vsg
 
 @implementation vsg_iOS_View
 {
-    vsgiOS::iOS_Window* vsgWindow;
+    @public vsgiOS::iOS_Window* vsgWindow;
     vsg::ref_ptr<vsg::WindowTraits> _traits;
 }
 
@@ -136,38 +136,67 @@ namespace vsg
 {
     return YES;
 }
+
+template<class T>
+vsg::ref_ptr<T> createTouchEvt(vsgiOS::iOS_Window* window, UIEvent* event, uint32_t in_id, float devicePixelScale)
+{
+    vsg::clock::time_point event_time = window->getEventTime([event timestamp]);
+    for (auto touch in [event allTouches])
+    {
+        // it seems like there is always only one (TODO CHECK THAT)
+        auto pos = [touch locationInView:nil];
+        uint32_t x = pos.x;
+        uint32_t y = pos.y;
+        return vsg::ref_ptr<T>(new T(window, event_time, x, y, in_id));
+    }
+    return vsg::ref_ptr<T>(nullptr);
+}
+
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
 {
-    vsgWindow->handleUIEvent(event);
+    auto devicePixelScale = _traits->hdpi ? UIScreen.mainScreen.nativeScale : 1.0f;
+    vsgWindow->queueEvent(createTouchEvt<vsg::TouchDownEvent>(vsgWindow, event, 0, devicePixelScale));
 }
+
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
 {
-    vsgWindow->handleUIEvent(event);
+    auto devicePixelScale = _traits->hdpi ? UIScreen.mainScreen.nativeScale : 1.0f;
+    vsgWindow->queueEvent(createTouchEvt<vsg::TouchUpEvent>(vsgWindow, event, 0, devicePixelScale));
 }
+
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
 {
-    vsgWindow->handleUIEvent(event);
+    auto devicePixelScale = _traits->hdpi ? UIScreen.mainScreen.nativeScale : 1.0f;
+    vsgWindow->queueEvent(createTouchEvt<vsg::TouchMoveEvent>(vsgWindow, event, 0, devicePixelScale));
 }
+
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
 {
+    std::cout << "touchesCancelled" << std::endl;
+   // vsg::touch
     vsgWindow->handleUIEvent(event);
 }
+
 - (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
 {
     vsgWindow->handleUIEvent(event);
 }
+
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
 {
     vsgWindow->handleUIEvent(event);
 }
+
 - (void)pressesChanged:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
 {
     vsgWindow->handleUIEvent(event);
 }
+
 - (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event
 {
     vsgWindow->handleUIEvent(event);
 }
+
 - (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event
 {
     vsgWindow->handleUIEvent(event);
@@ -232,6 +261,8 @@ vsgiOS::iOS_Window::iOS_Window(vsg::ref_ptr<vsg::WindowTraits> traits)
     auto devicePixelScale = _traits->hdpi ?  UIScreen.mainScreen.nativeScale : 1.0f;
     _window = std::any_cast<vsg_iOS_Window*>(traits->nativeWindow);
     _view = (vsg_iOS_View*)( _window.rootViewController.view );
+    _view->vsgWindow = this;
+    _view->_traits = _traits;
     _keyboard = new KeyboardMap;
     _metalLayer = (CAMetalLayer*) _view.layer;
     
@@ -610,9 +641,7 @@ bool vsgiOS::iOS_Window::handleUIEvent(UIEvent* anEvent)
 {
     switch([anEvent type])
     {
-        case UIEventTypeTouches:
-            std::cout << "touch event" << std::endl;
-            break;
+        
 //        // mouse events
 //        case UIEventTypeMouseMoved:
 //        case UIEventTypeLeftMouseDown:
@@ -675,7 +704,7 @@ bool vsgiOS::iOS_Window::handleUIEvent(UIEvent* anEvent)
 //            }
 //            return true;
 //        }
-//        // keyboard events
+        // keyboard events
 //        case NSEventTypeKeyDown:
 //        case NSEventTypeKeyUp:
 //        //case NSEventTypeFlagsChanged:
@@ -708,7 +737,7 @@ bool vsgiOS::iOS_Window::handleUIEvent(UIEvent* anEvent)
 //            _bufferedEvents.emplace_back(new vsg::ScrollWheelEvent(this, getEventTime([anEvent timestamp]), vsg::vec3([anEvent deltaX], [anEvent deltaY], [anEvent deltaZ])));
 //            return true;
 //        }
-//
+
         default: break;
     }
     return false;

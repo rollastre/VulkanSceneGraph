@@ -26,101 +26,89 @@ using namespace vsg;
     auto mainScreen =[UIScreen mainScreen];
     auto bounds = [mainScreen bounds];
     
-#if defined CUBE_CONTROLLER
-    { // good code
-        self.window = [[UIWindow alloc] initWithFrame:bounds];
-        vsg_iOS_ViewController* vc = [[vsg_iOS_ViewController alloc] init];
-        self.window.rootViewController = vc;
-        self.window.makeKeyAndVisible;
-    }
-#else
+    vsg::ref_ptr<vsg::Viewer> vsgViewer = vsg::Viewer::create();
+    vsg::ref_ptr<vsg::WindowTraits> traits = vsg::WindowTraits::create();
+    traits->x = bounds.origin.x;
+    traits->y = bounds.origin.y;
+    traits->width = bounds.size.width;
+    traits->height = bounds.size.height;
+    self.window = [[vsg_iOS_Window alloc] initWithTraits: traits andVsgViewer: vsgViewer];
+    self.window.makeKeyAndVisible;
+
+
+    auto options = vsg::Options::create();
+    options->fileCache = vsg::getEnv("VSG_FILE_CACHE");
+    options->paths = vsg::getEnvPaths("VSG_FILE_PATH");
+
+    auto loadLevels=0;
+    auto horizonMountainHeight=0;
+    std::string pathFilename = "";
+    vsg::ref_ptr<vsg::Window> window = self.window.vsgWindow;
+    vsg::ref_ptr<vsg::Node> vsg_scene = lz();
+
+    // compute the bounds of the scene graph to help position camera
+    vsg::ComputeBounds computeBounds;
+    vsg_scene->accept(computeBounds);
+    vsg::dvec3 centre = (computeBounds.bounds.min + computeBounds.bounds.max) * 0.5;
+    double radius = vsg::length(computeBounds.bounds.max - computeBounds.bounds.min) * 0.6;
+    double nearFarRatio = 0.001;
+
+    // set up the camera
+    auto lookAt = vsg::LookAt::create(centre + vsg::dvec3(0.0, -radius * 3.5, 0.0), centre, vsg::dvec3(0.0, 0.0, 1.0));
+
+    vsg::ref_ptr<vsg::ProjectionMatrix> perspective;
+    vsg::ref_ptr<vsg::EllipsoidModel> ellipsoidModel(vsg_scene->getObject<vsg::EllipsoidModel>("EllipsoidModel"));
+    if (ellipsoidModel)
     {
-        vsg::ref_ptr<vsg::Viewer> vsgViewer = vsg::Viewer::create();
-        vsg::ref_ptr<vsg::WindowTraits> traits = vsg::WindowTraits::create();
-        traits->x = bounds.origin.x;
-        traits->y = bounds.origin.y;
-        traits->width = bounds.size.width;
-        traits->height = bounds.size.height;
-        self.window = [[vsg_iOS_Window alloc] initWithTraits: traits andVsgViewer: vsgViewer];
-        self.window.makeKeyAndVisible;
-     
-        
-        auto options = vsg::Options::create();
-        options->fileCache = vsg::getEnv("VSG_FILE_CACHE");
-        options->paths = vsg::getEnvPaths("VSG_FILE_PATH");
-        
-        auto loadLevels=0;
-        auto horizonMountainHeight=0;
-        std::string pathFilename = "";
-        vsg::ref_ptr<vsg::Window> window = self.window.vsgWindow;
-        vsg::ref_ptr<vsg::Node> vsg_scene = lz();
-        
-        // compute the bounds of the scene graph to help position camera
-       vsg::ComputeBounds computeBounds;
-       vsg_scene->accept(computeBounds);
-       vsg::dvec3 centre = (computeBounds.bounds.min + computeBounds.bounds.max) * 0.5;
-       double radius = vsg::length(computeBounds.bounds.max - computeBounds.bounds.min) * 0.6;
-       double nearFarRatio = 0.001;
-
-       // set up the camera
-       auto lookAt = vsg::LookAt::create(centre + vsg::dvec3(0.0, -radius * 3.5, 0.0), centre, vsg::dvec3(0.0, 0.0, 1.0));
-
-       vsg::ref_ptr<vsg::ProjectionMatrix> perspective;
-       vsg::ref_ptr<vsg::EllipsoidModel> ellipsoidModel(vsg_scene->getObject<vsg::EllipsoidModel>("EllipsoidModel"));
-       if (ellipsoidModel)
-       {
-           perspective = vsg::EllipsoidPerspective::create(lookAt, ellipsoidModel, 30.0, static_cast<double>(window->extent2D().width) / static_cast<double>(window->extent2D().height), nearFarRatio, horizonMountainHeight);
-       }
-       else
-       {
-           perspective = vsg::Perspective::create(30.0, static_cast<double>(window->extent2D().width) / static_cast<double>(window->extent2D().height), nearFarRatio * radius, radius * 4.5);
-       }
-
-       auto camera = vsg::Camera::create(perspective, lookAt, vsg::ViewportState::create(window->extent2D()));
-
-       // add close handler to respond the close window button and pressing escape
-       vsgViewer->addEventHandler(vsg::CloseHandler::create(vsgViewer));
-
-       if (pathFilename.empty())
-       {
-           vsgViewer->addEventHandler(vsg::Trackball::create(camera, ellipsoidModel));
-       }
-       else
-       {
-           auto animationPath = vsg::read_cast<vsg::AnimationPath>(pathFilename, options);
-           if (!animationPath)
-           {
-               std::cout<<"Warning: unable to read animation path : "<<pathFilename<<std::endl;
-               return 1;
-           }
-
-           auto animationPathHandler = vsg::AnimationPathHandler::create(camera, animationPath, vsgViewer->start_point());
-           animationPathHandler->printFrameStatsToConsole = true;
-           vsgViewer->addEventHandler(animationPathHandler);
-       }
-
-       // if required preload specific number of PagedLOD levels.
-       if (loadLevels > 0)
-       {
-           vsg::LoadPagedLOD loadPagedLOD(camera, loadLevels);
-
-           auto startTime = std::chrono::steady_clock::now();
-
-           vsg_scene->accept(loadPagedLOD);
-
-            auto time = std::chrono::duration<float, std::chrono::milliseconds::period>(std::chrono::steady_clock::now() - startTime).count();
-            std::cout << "No. of tiles loaded " << loadPagedLOD.numTiles << " in " << time << "ms." << std::endl;
-        }
-
-        auto commandGraph = vsg::createCommandGraphForView(window, camera, vsg_scene);
-        vsgViewer->assignRecordAndSubmitTaskAndPresentation({commandGraph});
-
-        vsgViewer->compile();
-
-        
+       perspective = vsg::EllipsoidPerspective::create(lookAt, ellipsoidModel, 30.0, static_cast<double>(window->extent2D().width) / static_cast<double>(window->extent2D().height), nearFarRatio, horizonMountainHeight);
     }
-#endif
- 
+    else
+    {
+       perspective = vsg::Perspective::create(30.0, static_cast<double>(window->extent2D().width) / static_cast<double>(window->extent2D().height), nearFarRatio * radius, radius * 4.5);
+    }
+
+    auto camera = vsg::Camera::create(perspective, lookAt, vsg::ViewportState::create(window->extent2D()));
+
+    // add close handler to respond the close window button and pressing escape
+    vsgViewer->addEventHandler(vsg::CloseHandler::create(vsgViewer));
+
+    if (pathFilename.empty())
+    {
+       vsgViewer->addEventHandler(vsg::Trackball::create(camera, ellipsoidModel));
+    }
+    else
+    {
+       auto animationPath = vsg::read_cast<vsg::AnimationPath>(pathFilename, options);
+       if (!animationPath)
+       {
+           std::cout<<"Warning: unable to read animation path : "<<pathFilename<<std::endl;
+           return 1;
+       }
+
+       auto animationPathHandler = vsg::AnimationPathHandler::create(camera, animationPath, vsgViewer->start_point());
+       animationPathHandler->printFrameStatsToConsole = true;
+       vsgViewer->addEventHandler(animationPathHandler);
+    }
+
+    // if required preload specific number of PagedLOD levels.
+    if (loadLevels > 0)
+    {
+       vsg::LoadPagedLOD loadPagedLOD(camera, loadLevels);
+
+       auto startTime = std::chrono::steady_clock::now();
+
+       vsg_scene->accept(loadPagedLOD);
+
+        auto time = std::chrono::duration<float, std::chrono::milliseconds::period>(std::chrono::steady_clock::now() - startTime).count();
+        std::cout << "No. of tiles loaded " << loadPagedLOD.numTiles << " in " << time << "ms." << std::endl;
+    }
+
+    auto commandGraph = vsg::createCommandGraphForView(window, camera, vsg_scene);
+    vsgViewer->assignRecordAndSubmitTaskAndPresentation({commandGraph});
+
+    vsgViewer->compile();
+
+
     return YES;
 }
 
